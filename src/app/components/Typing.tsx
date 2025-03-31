@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +10,7 @@ import { Clock, RotateCcw, Trophy, BarChart3, History } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Input } from "@/components/ui/input"
 
 type TestResult = {
   wpm: number
@@ -33,45 +33,51 @@ export default function TypingSpeedTester() {
   const [cpm, setCpm] = useState(0)
   const [accuracy, setAccuracy] = useState(100)
   const [errors, setErrors] = useState(0)
-  const [errorPositions, setErrorPositions] = useState<number[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [difficulty, setDifficulty] = useState<DifficultyLevel>("medium")
   const [testHistory, setTestHistory] = useState<TestResult[]>([])
-  const [currentKey, setCurrentKey] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Fetch random text based on difficulty
   const fetchRandomText = useCallback(async () => {
     setIsLoading(true)
     try {
       let apiUrl = "https://api.quotable.io/random"
-
-      // Adjust length based on difficulty
       switch (difficulty) {
-        case "easy":
-          apiUrl += "?minLength=50&maxLength=100"
-          break
-        case "medium":
-          apiUrl += "?minLength=100&maxLength=200"
-          break
-        case "hard":
-          apiUrl += "?minLength=200&maxLength=300"
-          break
+        case "easy": apiUrl += "?minLength=50&maxLength=100"; break
+        case "medium": apiUrl += "?minLength=100&maxLength=200"; break
+        case "hard": apiUrl += "?minLength=200&maxLength=300"; break
       }
-
       const response = await fetch(apiUrl)
       const data = await response.json()
       setSampleText(data.content)
     } catch (error) {
       console.error("Failed to fetch random text:", error)
-      // Fallback to a default text if API fails
-      setSampleText(
-        "The quick brown fox jumps over the lazy dog. This pangram contains every letter of the English alphabet at least once.",
-      )
+      setSampleText("The quick brown fox jumps over the lazy dog. This pangram contains every letter of the English alphabet at least once.")
     } finally {
       setIsLoading(false)
     }
   }, [difficulty])
+
+  const calculateStats = useCallback(() => {
+    const timeElapsed = 60 - timeLeft
+    const minutes = timeElapsed / 60 || 1
+    
+    // Calculate correct characters (total typed - errors)
+    const correctChars = text.length - errors
+    const words = correctChars / 5
+    
+    setWpm(Math.round(words / minutes))
+    setCpm(Math.round(correctChars / minutes))
+  }, [text, errors, timeLeft])
+
+  const finishTest = useCallback(() => {
+    setIsFinished(true)
+    setIsStarted(false)
+    setTestHistory(prev => [
+      { wpm, cpm, accuracy, errors, time: 60 - timeLeft, date: new Date() },
+      ...prev
+    ].slice(0, 10))
+  }, [wpm, cpm, accuracy, errors, timeLeft])
 
   useEffect(() => {
     fetchRandomText()
@@ -79,18 +85,16 @@ export default function TypingSpeedTester() {
 
   useEffect(() => {
     let timer: NodeJS.Timeout
-
     if (isStarted && timeLeft > 0) {
       timer = setInterval(() => {
-        setTimeLeft((prev) => prev - 1)
+        setTimeLeft(prev => prev - 1)
         calculateStats()
       }, 1000)
     } else if (timeLeft === 0) {
       finishTest()
     }
-
     return () => clearInterval(timer)
-  }, [isStarted, timeLeft])
+  }, [isStarted, timeLeft, calculateStats, finishTest])
 
   const startTest = () => {
     setText("")
@@ -101,10 +105,7 @@ export default function TypingSpeedTester() {
     setCpm(0)
     setAccuracy(100)
     setErrors(0)
-    setErrorPositions([])
-    if (inputRef.current) {
-      inputRef.current.focus()
-    }
+    inputRef.current?.focus()
   }
 
   const resetTest = () => {
@@ -112,135 +113,63 @@ export default function TypingSpeedTester() {
     setIsStarted(false)
     setIsFinished(false)
     setTimeLeft(60)
-    setWpm(0)
-    setCpm(0)
-    setAccuracy(100)
-    setErrors(0)
-    setErrorPositions([])
     fetchRandomText()
-  }
-
-  const finishTest = () => {
-    setIsFinished(true)
-    setIsStarted(false)
-
-    // Save test result to history
-    const newResult: TestResult = {
-      wpm,
-      cpm,
-      accuracy,
-      errors,
-      time: 60 - timeLeft,
-      date: new Date(),
-    }
-
-    setTestHistory((prev) => [newResult, ...prev].slice(0, 10)) // Keep only last 10 tests
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value
     setText(inputValue)
-
-    // Calculate errors and track error positions
+    
     let errorCount = 0
-    const newErrorPositions: number[] = []
-
-    for (let i = 0; i < inputValue.length; i++) {
-      if (inputValue[i] !== sampleText[i]) {
+    // Check both typed characters and extra characters beyond sample text
+    const maxLength = Math.max(inputValue.length, sampleText.length)
+    
+    for (let i = 0; i < maxLength; i++) {
+      if (i >= sampleText.length || i >= inputValue.length) {
         errorCount++
-        newErrorPositions.push(i)
+      } else if (inputValue[i] !== sampleText[i]) {
+        errorCount++
       }
     }
-
+    
     setErrors(errorCount)
-    setErrorPositions(newErrorPositions)
-
-    // Calculate accuracy
-    const accuracyValue = inputValue.length > 0 ? Math.max(0, 100 - (errorCount / inputValue.length) * 100) : 100
+    
+    const accuracyValue = inputValue.length > 0 
+      ? Math.max(0, 100 - (errorCount / inputValue.length) * 100)
+      : 100
     setAccuracy(Math.round(accuracyValue))
-
-    // Calculate stats
+    
     calculateStats()
-
-    // Check if test is complete
-    if (inputValue.length === sampleText.length) {
-      finishTest()
-    }
+    
+    if (inputValue.length === sampleText.length) finishTest()
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    setCurrentKey(e.key)
-
-    // Allow Escape key to reset the test
-    if (e.key === "Escape") {
-      resetTest()
-    }
-  }
-
-  const handleKeyUp = () => {
-    setCurrentKey(null)
-  }
-
-  const calculateStats = () => {
-    // Calculate WPM (Words Per Minute)
-    // Words are traditionally counted as 5 characters
-    const words = text.length / 5
-    const minutes = (60 - timeLeft) / 60
-    const calculatedWpm = minutes > 0 ? Math.round(words / minutes) : 0
-    setWpm(calculatedWpm)
-
-    // Calculate CPM (Characters Per Minute)
-    const calculatedCpm = minutes > 0 ? Math.round(text.length / minutes) : 0
-    setCpm(calculatedCpm)
-  }
-
-  const renderSampleText = () => {
-    return sampleText.split("").map((char, index) => {
-      let className = "text-muted-foreground"
-
-      if (index < text.length) {
-        className = text[index] === char ? "text-green-500 font-medium" : "text-red-500 font-medium"
+  const renderSampleText = () => sampleText.split("").map((char, index) => (
+    <span
+      key={`${char}-${index}-${sampleText}`}
+      className={
+        index >= text.length ? "text-muted-foreground" :
+        text[index] === char ? "text-green-500 font-medium" :
+        `text-red-500 font-medium${index === text.length ? " bg-primary/20 px-0.5 animate-pulse" : ""}`
       }
+    >
+      {char}
+    </span>
+  ))
 
-      // Highlight current position
-      if (index === text.length) {
-        className += " bg-primary/20 px-0.5 animate-pulse"
-      }
-
-      return (
-        <span key={`${char}-${index}-${Math.random()}`} className={className}>
-          {char}
-        </span>
-      )
-    })
+  function getProgressValue(): number {
+    if (sampleText.length === 0) return 0
+    return Math.min((text.length / sampleText.length) * 100, 100)
   }
-
-  const getProgressValue = () => {
-    return isStarted ? ((60 - timeLeft) / 60) * 100 : 0
-  }
-
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date)
-  }
-
-  // Keyboard layout for visual feedback
-  const keyboardRows = [
-    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
-    ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
-    ["z", "x", "c", "v", "b", "n", "m"],
-  ]
 
   return (
-    <div className="container max-w-4xl py-10 px-4">
-      <Card>
+    <div className="container max-w-4xl py-10 px-4 mx-auto min-h-screen flex items-center justify-center">
+      <Card className="w-full">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl">Typing Speed Test</CardTitle>
-          <CardDescription>Test your typing speed and accuracy with random texts from the internet</CardDescription>
+          <CardDescription className="text-balance">
+            Test your typing speed and accuracy with random texts from the internet
+          </CardDescription>
           <div className="flex justify-center mt-2">
             <Select
               value={difficulty}
@@ -260,12 +189,12 @@ export default function TypingSpeedTester() {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-muted-foreground" />
               <span className="text-xl font-medium">{timeLeft}s</span>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -274,7 +203,7 @@ export default function TypingSpeedTester() {
                     </Badge>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Words Per Minute</p>
+                    <p>Words Per Minute (correct words)</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -287,7 +216,7 @@ export default function TypingSpeedTester() {
                     </Badge>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Characters Per Minute</p>
+                    <p>Correct Characters Per Minute</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -313,7 +242,7 @@ export default function TypingSpeedTester() {
                     </Badge>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Number of typing errors</p>
+                    <p>Total errors including extra characters</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -332,16 +261,14 @@ export default function TypingSpeedTester() {
             </div>
           )}
 
-          <div>
-            <input
+          <div className="space-y-4">
+            <Input
               ref={inputRef}
               type="text"
               value={text}
               onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              onKeyUp={handleKeyUp}
               disabled={!isStarted || isFinished || isLoading}
-              className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full p-3 text-lg focus:ring-2 focus:ring-primary"
               placeholder={isStarted ? "Start typing..." : "Click 'Start Test' to begin"}
             />
           </div>
@@ -400,7 +327,7 @@ export default function TypingSpeedTester() {
                   <h3 className="text-xl font-bold mb-2">Detailed Statistics</h3>
                   <div className="space-y-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">Characters Typed</p>
+                      <p className="text-sm text-muted-foreground">Total Characters</p>
                       <p className="text-xl font-bold">{text.length}</p>
                     </div>
                     <div>
@@ -431,9 +358,17 @@ export default function TypingSpeedTester() {
                   {testHistory.length > 0 ? (
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                       {testHistory.map((result, index) => (
-                        <div key={`${result.date}-${index}-${Math.random()}`} className="border rounded p-2 flex justify-between items-center">
+                        <div 
+                          key={`${result.date}-${index}`}
+                          className="border rounded p-2 flex justify-between items-center"
+                        >
                           <div>
-                            <p className="font-medium">{formatDate(result.date)}</p>
+                            <p className="font-medium">
+                              {new Intl.DateTimeFormat('en-US', { 
+                                dateStyle: 'short', 
+                                timeStyle: 'short' 
+                              }).format(new Date(result.date))}
+                            </p>
                             <p className="text-sm text-muted-foreground">
                               {result.wpm} WPM, {result.accuracy}% accuracy
                             </p>
@@ -449,92 +384,17 @@ export default function TypingSpeedTester() {
               </TabsContent>
             </Tabs>
           )}
-
-          {/* Visual Keyboard */}
-          <div className="hidden md:block">
-            <div className="bg-slate-100 p-2 rounded-md">
-              <div className="flex justify-center mb-1">
-                {keyboardRows[0].map((key) => (
-                  <div
-                    key={key}
-                    className={`w-10 h-10 m-0.5 flex items-center justify-center rounded-md border ${
-                      currentKey === key
-                        ? "bg-primary text-primary-foreground"
-                        : sampleText[text.length] === key
-                          ? "bg-primary/20"
-                          : "bg-white"
-                    }`}
-                  >
-                    {key.toUpperCase()}
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-center mb-1">
-                <div className="w-5" /> {/* Offset for second row */}
-                {keyboardRows[1].map((key) => (
-                  <div
-                    key={key}
-                    className={`w-10 h-10 m-0.5 flex items-center justify-center rounded-md border ${
-                      currentKey === key
-                        ? "bg-primary text-primary-foreground"
-                        : sampleText[text.length] === key
-                          ? "bg-primary/20"
-                          : "bg-white"
-                    }`}
-                  >
-                    {key.toUpperCase()}
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-center">
-                <div className="w-10"/> {/* Offset for third row */}
-                {keyboardRows[2].map((key) => (
-                  <div
-                    key={key}
-                    className={`w-10 h-10 m-0.5 flex items-center justify-center rounded-md border ${
-                      currentKey === key
-                        ? "bg-primary text-primary-foreground"
-                        : sampleText[text.length] === key
-                          ? "bg-primary/20"
-                          : "bg-white"
-                    }`}
-                  >
-                    {key.toUpperCase()}
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-center mt-1">
-                <div
-                  className={`w-64 h-10 m-0.5 flex items-center justify-center rounded-md border ${
-                    currentKey === " "
-                      ? "bg-primary text-primary-foreground"
-                      : sampleText[text.length] === " "
-                        ? "bg-primary/20"
-                        : "bg-white"
-                  }`}
-                >
-                  SPACE
-                </div>
-              </div>
-            </div>
-          </div>
         </CardContent>
 
-        <CardFooter className="flex justify-center gap-4">
+        <CardFooter className="flex flex-col md:flex-row justify-center gap-4">
           {!isStarted && (
             <Button onClick={startTest} size="lg" disabled={isLoading}>
               {isFinished ? "Try Again" : "Start Test"}
             </Button>
           )}
-          {isStarted && (
+          {(isStarted || isFinished) && (
             <Button variant="outline" onClick={resetTest} size="lg">
-              Reset
-            </Button>
-          )}
-          {isFinished && (
-            <Button variant="outline" onClick={resetTest} size="lg">
-              <RotateCcw className="mr-2 h-4 w-4" />
-              New Test
+              {isFinished ? <><RotateCcw className="mr-2 h-4 w-4" /> New Test</> : "Reset"}
             </Button>
           )}
           {!isStarted && !isFinished && (
@@ -548,4 +408,3 @@ export default function TypingSpeedTester() {
     </div>
   )
 }
-
