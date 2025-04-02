@@ -1,7 +1,5 @@
 "use client"
 
-import { DialogTrigger } from "@/components/ui/dialog"
-
 import type React from "react"
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
@@ -22,6 +20,9 @@ import {
   Volume2,
   VolumeX,
   Info,
+  Zap,
+  Award,
+  KeyboardIcon,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -29,7 +30,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,6 +67,7 @@ type DifficultyLevel = "easy" | "medium" | "hard" | "expert"
 type ThemeMode = "light" | "dark" | "system"
 type KeyboardLayout = "qwerty" | "dvorak" | "colemak"
 type TextType = "paragraphs" | "quotes"
+type FontSize = "small" | "medium" | "large"
 
 interface CharacterData {
   char: string
@@ -105,6 +114,12 @@ export default function TypingSpeedTester() {
   const [correctWords, setCorrectWords] = useState(0)
   const [typedWords, setTypedWords] = useState<WordData[]>([])
   const [calculationMethod, setCalculationMethod] = useState<"traditional" | "actual">("actual")
+  const [fontSize, setFontSize] = useState<FontSize>("medium")
+  const [showKeyboard, setShowKeyboard] = useState(true)
+  const [focusMode, setFocusMode] = useState(false)
+  const [streakCount, setStreakCount] = useState(0)
+  const [maxStreak, setMaxStreak] = useState(0)
+  const [showStreakCounter, setShowStreakCounter] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
   const textContainerRef = useRef<HTMLDivElement>(null)
 
@@ -156,6 +171,30 @@ export default function TypingSpeedTester() {
     if (savedMethod) {
       setCalculationMethod(savedMethod)
     }
+
+    // Load font size preference
+    const savedFontSize = localStorage.getItem("typingTestFontSize") as FontSize | null
+    if (savedFontSize) {
+      setFontSize(savedFontSize)
+    }
+
+    // Load keyboard visibility preference
+    const savedShowKeyboard = localStorage.getItem("typingTestShowKeyboard")
+    if (savedShowKeyboard !== null) {
+      setShowKeyboard(savedShowKeyboard === "true")
+    }
+
+    // Load focus mode preference
+    const savedFocusMode = localStorage.getItem("typingTestFocusMode")
+    if (savedFocusMode !== null) {
+      setFocusMode(savedFocusMode === "true")
+    }
+
+    // Load streak counter preference
+    const savedShowStreakCounter = localStorage.getItem("typingTestShowStreakCounter")
+    if (savedShowStreakCounter !== null) {
+      setShowStreakCounter(savedShowStreakCounter === "true")
+    }
   }, [])
 
   // Apply theme effect
@@ -179,6 +218,26 @@ export default function TypingSpeedTester() {
   useEffect(() => {
     localStorage.setItem("typingTestCalculationMethod", calculationMethod)
   }, [calculationMethod])
+
+  // Save font size preference
+  useEffect(() => {
+    localStorage.setItem("typingTestFontSize", fontSize)
+  }, [fontSize])
+
+  // Save keyboard visibility preference
+  useEffect(() => {
+    localStorage.setItem("typingTestShowKeyboard", showKeyboard.toString())
+  }, [showKeyboard])
+
+  // Save focus mode preference
+  useEffect(() => {
+    localStorage.setItem("typingTestFocusMode", focusMode.toString())
+  }, [focusMode])
+
+  // Save streak counter preference
+  useEffect(() => {
+    localStorage.setItem("typingTestShowStreakCounter", showStreakCounter.toString())
+  }, [showStreakCounter])
 
   // Save test history to localStorage
   useEffect(() => {
@@ -332,6 +391,8 @@ export default function TypingSpeedTester() {
     setErrorPositions([])
     setTypedWords([])
     setCorrectWords(0)
+    setStreakCount(0)
+    setMaxStreak(0)
 
     // Reset parsed text
     setParsedText(sampleText.split("").map((char) => ({ char })))
@@ -365,6 +426,8 @@ export default function TypingSpeedTester() {
     setErrorPositions([])
     setTypedWords([])
     setCorrectWords(0)
+    setStreakCount(0)
+    setMaxStreak(0)
     fetchRandomText()
   }
 
@@ -462,6 +525,7 @@ export default function TypingSpeedTester() {
     let errorCount = 0
     const newErrorPositions: number[] = []
     const updatedParsedText = [...parsedText]
+    let currentStreak = streakCount
 
     // Analyze character-by-character errors
     for (let i = 0; i < inputValue.length; i++) {
@@ -475,19 +539,31 @@ export default function TypingSpeedTester() {
         if (!isCorrect) {
           errorCount++
           newErrorPositions.push(i)
+          currentStreak = 0 // Reset streak on error
 
           // Play error sound
           if (soundEnabled && errorSound && showInstantFeedback) {
             errorSound.currentTime = 0
             errorSound.play().catch((e) => console.error("Error playing sound:", e))
           }
-        } else if (soundEnabled && successSound && showInstantFeedback && i === inputValue.length - 1) {
-          // Play success sound for the last character typed if it's correct
-          successSound.currentTime = 0
-          successSound.play().catch((e) => console.error("Error playing sound:", e))
+        } else {
+          // Increment streak for correct character
+          if (i === inputValue.length - 1) {
+            // Only for the last character typed
+            currentStreak++
+            setMaxStreak(Math.max(maxStreak, currentStreak))
+
+            // Play success sound for the last character typed if it's correct
+            if (soundEnabled && successSound && showInstantFeedback) {
+              successSound.currentTime = 0
+              successSound.play().catch((e) => console.error("Error playing sound:", e))
+            }
+          }
         }
       }
     }
+
+    setStreakCount(currentStreak)
 
     // Clear current character marker from all characters
     for (const char of updatedParsedText) {
@@ -592,9 +668,22 @@ export default function TypingSpeedTester() {
     }
   }
 
+  const getFontSizeClass = () => {
+    switch (fontSize) {
+      case "small":
+        return "text-sm"
+      case "medium":
+        return "text-lg"
+      case "large":
+        return "text-xl"
+      default:
+        return "text-lg"
+    }
+  }
+
   const renderSampleText = () => {
     return (
-      <div ref={textContainerRef} className="text-wrap break-all">
+      <div ref={textContainerRef} className={`text-wrap break-all ${getFontSizeClass()}`}>
         {parsedText.map((charData, index) => {
           let className = "text-muted-foreground"
 
@@ -607,11 +696,6 @@ export default function TypingSpeedTester() {
           // Highlight current position
           if (charData.isCurrent) {
             className += " bg-primary/20 px-0.5 animate-pulse current-char"
-          }
-
-          // Add word boundary visualization
-          if (charData.char === " ") {
-            className += " border-b border-dashed border-gray-400"
           }
 
           return (
@@ -689,243 +773,303 @@ export default function TypingSpeedTester() {
 
   return (
     <div className="container max-w-4xl py-10 px-4">
-      <Card className="dark:bg-gray-900 dark:text-gray-100">
-        <CardHeader className="text-center">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              {personalBest && (
+      <Card className={`dark:bg-gray-900 dark:text-gray-100 ${focusMode ? "focus-mode" : ""}`}>
+        <CardHeader className={`text-center ${focusMode ? "pb-2" : ""}`}>
+          {!focusMode && (
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                {personalBest && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant="outline" className="text-sm">
+                          <Trophy className="h-3 w-3 mr-1 text-yellow-500" />
+                          Best: {personalBest.wpm} WPM
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Your personal best</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Badge variant="outline" className="text-sm">
-                        <Trophy className="h-3 w-3 mr-1 text-yellow-500" />
-                        Best: {personalBest.wpm} WPM
-                      </Badge>
+                      <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+                        {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                      </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Your personal best</p>
+                      <p>Toggle theme</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-              )}
-            </div>
 
-            <div className="flex items-center gap-2">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-                      {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <Settings className="h-5 w-5" />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Toggle theme</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Settings className="h-5 w-5" />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Settings</DialogTitle>
-                    <DialogDescription>Customize your typing test experience</DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="calculation-method" className="text-right">
-                        WPM Calculation
-                      </Label>
-                      <div className="col-span-3">
-                        <Select
-                          value={calculationMethod}
-                          onValueChange={(value) => setCalculationMethod(value as "traditional" | "actual")}
-                        >
-                          <SelectTrigger id="calculation-method">
-                            <SelectValue placeholder="Calculation method" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="actual">Actual Words</SelectItem>
-                            <SelectItem value="traditional">Traditional (chars/5)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="duration" className="text-right">
-                        Duration
-                      </Label>
-                      <div className="col-span-3">
-                        <Select
-                          value={testDuration.toString()}
-                          onValueChange={(value) => setTestDuration(Number.parseInt(value))}
-                        >
-                          <SelectTrigger id="duration">
-                            <SelectValue placeholder="Test duration" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="15">15 seconds</SelectItem>
-                            <SelectItem value="30">30 seconds</SelectItem>
-                            <SelectItem value="60">1 minute</SelectItem>
-                            <SelectItem value="120">2 minutes</SelectItem>
-                            <SelectItem value="300">5 minutes</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="text-type" className="text-right">
-                        Text Type
-                      </Label>
-                      <div className="col-span-3">
-                        <Select
-                          value={textType}
-                          onValueChange={(value) => setTextType(value as TextType)}
-                          disabled={isStarted}
-                        >
-                          <SelectTrigger id="text-type">
-                            <SelectValue placeholder="Text type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="paragraphs">Paragraphs</SelectItem>
-                            <SelectItem value="quotes">Quotes</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="keyboard" className="text-right">
-                        Keyboard
-                      </Label>
-                      <div className="col-span-3">
-                        <Select
-                          value={keyboardLayout}
-                          onValueChange={(value) => setKeyboardLayout(value as KeyboardLayout)}
-                        >
-                          <SelectTrigger id="keyboard">
-                            <SelectValue placeholder="Keyboard layout" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="qwerty">QWERTY</SelectItem>
-                            <SelectItem value="dvorak">Dvorak</SelectItem>
-                            <SelectItem value="colemak">Colemak</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="sound-toggle" className="text-right">
-                        Sound
-                      </Label>
-                      <div className="flex items-center space-x-2 col-span-3">
-                        <Switch id="sound-toggle" checked={soundEnabled} onCheckedChange={setSoundEnabled} />
-                        <Label htmlFor="sound-toggle">
-                          {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                        </Label>
-                      </div>
-                    </div>
-
-                    {soundEnabled && (
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Settings</DialogTitle>
+                      <DialogDescription>Customize your typing test experience</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
                       <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="volume" className="text-right">
-                          Volume
+                        <Label htmlFor="calculation-method" className="text-right">
+                          WPM Calculation
                         </Label>
                         <div className="col-span-3">
-                          <Slider
-                            id="volume"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={[volume]}
-                            onValueChange={(value) => setVolume(value[0])}
-                          />
+                          <Select
+                            value={calculationMethod}
+                            onValueChange={(value) => setCalculationMethod(value as "traditional" | "actual")}
+                          >
+                            <SelectTrigger id="calculation-method">
+                              <SelectValue placeholder="Calculation method" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="actual">Actual Words</SelectItem>
+                              <SelectItem value="traditional">Traditional (chars/5)</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
-                    )}
 
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="feedback-toggle" className="text-right">
-                        Instant Feedback
-                      </Label>
-                      <div className="flex items-center space-x-2 col-span-3">
-                        <Switch
-                          id="feedback-toggle"
-                          checked={showInstantFeedback}
-                          onCheckedChange={setShowInstantFeedback}
-                        />
-                        <Label htmlFor="feedback-toggle">Show real-time feedback</Label>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="duration" className="text-right">
+                          Duration
+                        </Label>
+                        <div className="col-span-3">
+                          <Select
+                            value={testDuration.toString()}
+                            onValueChange={(value) => setTestDuration(Number.parseInt(value))}
+                          >
+                            <SelectTrigger id="duration">
+                              <SelectValue placeholder="Test duration" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="15">15 seconds</SelectItem>
+                              <SelectItem value="30">30 seconds</SelectItem>
+                              <SelectItem value="60">1 minute</SelectItem>
+                              <SelectItem value="120">2 minutes</SelectItem>
+                              <SelectItem value="300">5 minutes</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="text-type" className="text-right">
+                          Text Type
+                        </Label>
+                        <div className="col-span-3">
+                          <Select
+                            value={textType}
+                            onValueChange={(value) => setTextType(value as TextType)}
+                            disabled={isStarted}
+                          >
+                            <SelectTrigger id="text-type">
+                              <SelectValue placeholder="Text type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="paragraphs">Paragraphs</SelectItem>
+                              <SelectItem value="quotes">Quotes</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="font-size" className="text-right">
+                          Font Size
+                        </Label>
+                        <div className="col-span-3">
+                          <Select value={fontSize} onValueChange={(value) => setFontSize(value as FontSize)}>
+                            <SelectTrigger id="font-size">
+                              <SelectValue placeholder="Font size" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="small">Small</SelectItem>
+                              <SelectItem value="medium">Medium</SelectItem>
+                              <SelectItem value="large">Large</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="keyboard" className="text-right">
+                          Keyboard
+                        </Label>
+                        <div className="col-span-3">
+                          <Select
+                            value={keyboardLayout}
+                            onValueChange={(value) => setKeyboardLayout(value as KeyboardLayout)}
+                          >
+                            <SelectTrigger id="keyboard">
+                              <SelectValue placeholder="Keyboard layout" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="qwerty">QWERTY</SelectItem>
+                              <SelectItem value="dvorak">Dvorak</SelectItem>
+                              <SelectItem value="colemak">Colemak</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="show-keyboard" className="text-right">
+                          Show Keyboard
+                        </Label>
+                        <div className="flex items-center space-x-2 col-span-3">
+                          <Switch id="show-keyboard" checked={showKeyboard} onCheckedChange={setShowKeyboard} />
+                          <Label htmlFor="show-keyboard">
+                            <KeyboardIcon className="h-4 w-4 ml-2" />
+                          </Label>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="focus-mode" className="text-right">
+                          Focus Mode
+                        </Label>
+                        <div className="flex items-center space-x-2 col-span-3">
+                          <Switch id="focus-mode" checked={focusMode} onCheckedChange={setFocusMode} />
+                          <Label htmlFor="focus-mode">Hide distractions</Label>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="streak-counter" className="text-right">
+                          Streak Counter
+                        </Label>
+                        <div className="flex items-center space-x-2 col-span-3">
+                          <Switch
+                            id="streak-counter"
+                            checked={showStreakCounter}
+                            onCheckedChange={setShowStreakCounter}
+                          />
+                          <Label htmlFor="streak-counter">Show streak counter</Label>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="sound-toggle" className="text-right">
+                          Sound
+                        </Label>
+                        <div className="flex items-center space-x-2 col-span-3">
+                          <Switch id="sound-toggle" checked={soundEnabled} onCheckedChange={setSoundEnabled} />
+                          <Label htmlFor="sound-toggle">
+                            {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                          </Label>
+                        </div>
+                      </div>
+
+                      {soundEnabled && (
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="volume" className="text-right">
+                            Volume
+                          </Label>
+                          <div className="col-span-3">
+                            <Slider
+                              id="volume"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={[volume]}
+                              onValueChange={(value) => setVolume(value[0])}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="feedback-toggle" className="text-right">
+                          Instant Feedback
+                        </Label>
+                        <div className="flex items-center space-x-2 col-span-3">
+                          <Switch
+                            id="feedback-toggle"
+                            checked={showInstantFeedback}
+                            onCheckedChange={setShowInstantFeedback}
+                          />
+                          <Label htmlFor="feedback-toggle">Show real-time feedback</Label>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <BarChart3 className="h-5 w-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuLabel>Statistics</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={exportHistory}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Export History
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={clearHistory}>
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Clear History
-                  </DropdownMenuItem>
-                  {isFinished && (
-                    <DropdownMenuItem onClick={shareResult}>
-                      <Share2 className="mr-2 h-4 w-4" />
-                      Share Result
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <BarChart3 className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuLabel>Statistics</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={exportHistory}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Export History
                     </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <DropdownMenuItem onClick={clearHistory}>
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Clear History
+                    </DropdownMenuItem>
+                    {isFinished && (
+                      <DropdownMenuItem onClick={shareResult}>
+                        <Share2 className="mr-2 h-4 w-4" />
+                        Share Result
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
-          </div>
+          )}
 
-          <CardTitle className="text-3xl mt-2">Typing Speed Test</CardTitle>
-          <CardDescription>Test your typing speed and accuracy with AI-generated texts</CardDescription>
+          {!focusMode && (
+            <>
+              <CardTitle className="text-3xl mt-2">Typing Speed Test</CardTitle>
+              <CardDescription>Test your typing speed and accuracy with AI-generated texts</CardDescription>
 
-          <div className="flex flex-wrap justify-center gap-2 mt-2">
-            <Select
-              value={difficulty}
-              onValueChange={(value) => setDifficulty(value as DifficultyLevel)}
-              disabled={isStarted}
-            >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Difficulty" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="easy">Easy</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="hard">Hard</SelectItem>
-                <SelectItem value="expert">Expert</SelectItem>
-              </SelectContent>
-            </Select>
+              <div className="flex flex-wrap justify-center gap-2 mt-2">
+                <Select
+                  value={difficulty}
+                  onValueChange={(value) => setDifficulty(value as DifficultyLevel)}
+                  disabled={isStarted}
+                >
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Difficulty" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="easy">Easy</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="hard">Hard</SelectItem>
+                    <SelectItem value="expert">Expert</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            <Select value={textType} onValueChange={(value) => setTextType(value as TextType)} disabled={isStarted}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Text type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="paragraphs">Paragraphs</SelectItem>
-                <SelectItem value="quotes">Quotes</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+                <Select value={textType} onValueChange={(value) => setTextType(value as TextType)} disabled={isStarted}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Text type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="paragraphs">Paragraphs</SelectItem>
+                    <SelectItem value="quotes">Quotes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
         </CardHeader>
 
         <CardContent className="space-y-6">
@@ -935,6 +1079,38 @@ export default function TypingSpeedTester() {
               <span className="text-xl font-medium">{timeLeft}s</span>
             </div>
             <div className="flex flex-wrap gap-2">
+              {showStreakCounter && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="text-sm">
+                        <Zap className="h-3 w-3 mr-1 text-yellow-500" />
+                        Streak: {streakCount}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Current streak of correct characters</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+
+              {showStreakCounter && maxStreak > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="text-sm">
+                        <Award className="h-3 w-3 mr-1 text-purple-500" />
+                        Max: {maxStreak}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Maximum streak this session</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1109,6 +1285,10 @@ export default function TypingSpeedTester() {
                       <p className="text-sm text-muted-foreground">Difficulty</p>
                       <p className="text-2xl font-bold capitalize">{difficulty}</p>
                     </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Max Streak</p>
+                      <p className="text-2xl font-bold">{maxStreak}</p>
+                    </div>
                   </div>
 
                   <div className="mt-4 flex justify-end">
@@ -1202,81 +1382,85 @@ export default function TypingSpeedTester() {
           )}
 
           {/* Visual Keyboard */}
-          <div className="hidden md:block">
-            <div className="bg-slate-100 dark:bg-gray-800 p-2 rounded-md">
-              <div className="flex justify-center mb-1">
-                {keyboardLayouts[keyboardLayout][0].map((key) => (
+          {showKeyboard && !focusMode && (
+            <div className="hidden md:block">
+              <div className="bg-slate-100 dark:bg-gray-800 p-2 rounded-md">
+                <div className="flex justify-center mb-1">
+                  {keyboardLayouts[keyboardLayout][0].map((key) => (
+                    <div
+                      key={`key-${key}`}
+                      className={`w-10 h-10 m-0.5 flex items-center justify-center rounded-md border ${
+                        currentKey === key
+                          ? "bg-primary text-primary-foreground"
+                          : sampleText[text.length] === key
+                            ? "bg-primary/20"
+                            : "bg-white dark:bg-gray-700"
+                      }`}
+                    >
+                      {key.toUpperCase()}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-center mb-1">
+                  <div className="w-5" /> {/* Offset for second row */}
+                  {keyboardLayouts[keyboardLayout][1].map((key) => (
+                    <div
+                      key={`key-${key}`}
+                      className={`w-10 h-10 m-0.5 flex items-center justify-center rounded-md border ${
+                        currentKey === key
+                          ? "bg-primary text-primary-foreground"
+                          : sampleText[text.length] === key
+                            ? "bg-primary/20"
+                            : "bg-white dark:bg-gray-700"
+                      }`}
+                    >
+                      {key.toUpperCase()}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-center">
+                  <div className="w-10" /> {/* Offset for third row */}
+                  {keyboardLayouts[keyboardLayout][2].map((key) => (
+                    <div
+                      key={`key-${key}`}
+                      className={`w-10 h-10 m-0.5 flex items-center justify-center rounded-md border ${
+                        currentKey === key
+                          ? "bg-primary text-primary-foreground"
+                          : sampleText[text.length] === key
+                            ? "bg-primary/20"
+                            : "bg-white dark:bg-gray-700"
+                      }`}
+                    >
+                      {key.toUpperCase()}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-center mt-1">
                   <div
-                    key={`key-${key}`}
-                    className={`w-10 h-10 m-0.5 flex items-center justify-center rounded-md border ${
-                      currentKey === key
+                    className={`w-64 h-10 m-0.5 flex items-center justify-center rounded-md border ${
+                      currentKey === " "
                         ? "bg-primary text-primary-foreground"
-                        : sampleText[text.length] === key
+                        : sampleText[text.length] === " "
                           ? "bg-primary/20"
                           : "bg-white dark:bg-gray-700"
                     }`}
                   >
-                    {key.toUpperCase()}
+                    SPACE
                   </div>
-                ))}
-              </div>
-              <div className="flex justify-center mb-1">
-                <div className="w-5"/> {/* Offset for second row */}
-                {keyboardLayouts[keyboardLayout][1].map((key) => (
-                  <div
-                    key={`key-${key}`}
-                    className={`w-10 h-10 m-0.5 flex items-center justify-center rounded-md border ${
-                      currentKey === key
-                        ? "bg-primary text-primary-foreground"
-                        : sampleText[text.length] === key
-                          ? "bg-primary/20"
-                          : "bg-white dark:bg-gray-700"
-                    }`}
-                  >
-                    {key.toUpperCase()}
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-center">
-                <div className="w-10"/> {/* Offset for third row */}
-                {keyboardLayouts[keyboardLayout][2].map((key) => (
-                  <div
-                    key={`key-${key}`}
-                    className={`w-10 h-10 m-0.5 flex items-center justify-center rounded-md border ${
-                      currentKey === key
-                        ? "bg-primary text-primary-foreground"
-                        : sampleText[text.length] === key
-                          ? "bg-primary/20"
-                          : "bg-white dark:bg-gray-700"
-                    }`}
-                  >
-                    {key.toUpperCase()}
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-center mt-1">
-                <div
-                  className={`w-64 h-10 m-0.5 flex items-center justify-center rounded-md border ${
-                    currentKey === " "
-                      ? "bg-primary text-primary-foreground"
-                      : sampleText[text.length] === " "
-                        ? "bg-primary/20"
-                        : "bg-white dark:bg-gray-700"
-                  }`}
-                >
-                  SPACE
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="text-center text-sm text-muted-foreground">
-            <p>
-              Press <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl</kbd> +{" "}
-              <kbd className="px-1 py-0.5 bg-muted rounded border">Space</kbd> to start/pause,{" "}
-              <kbd className="px-1 py-0.5 bg-muted rounded border">Esc</kbd> to reset
-            </p>
-          </div>
+          {!focusMode && (
+            <div className="text-center text-sm text-muted-foreground">
+              <p>
+                Press <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl</kbd> +{" "}
+                <kbd className="px-1 py-0.5 bg-muted rounded border">Space</kbd> to start/pause,{" "}
+                <kbd className="px-1 py-0.5 bg-muted rounded border">Esc</kbd> to reset
+              </p>
+            </div>
+          )}
         </CardContent>
 
         <CardFooter className="flex justify-center gap-4">
