@@ -13,7 +13,7 @@ export function Navbar() {
           </Link>
         </div>
         <div className="flex flex-1 items-center justify-end space-x-2">
-          <nav className="flex items-center space-x-2">
+          <nav className="flex items-center space-x-4">
             <Link href="/" className="text-sm font-medium transition-colors hover:text-primary">
               Home
             </Link>

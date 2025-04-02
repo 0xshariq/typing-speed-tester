@@ -1,23 +1,44 @@
 "use client"
 
-import type React from "react"
+import { DialogTrigger } from "@/components/ui/dialog"
 
+import type React from "react"
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Trophy, Settings, Moon, Sun } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Label } from "@/components/ui/label"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+  Clock,
+  RotateCcw,
+  Trophy,
+  BarChart3,
+  History,
+  Settings,
+  Share2,
+  Download,
+  Moon,
+  Sun,
+  Volume2,
+  VolumeX,
+  Info,
+} from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Slider } from "@/components/ui/slider"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 import { v4 as uuidv4 } from "uuid"
 
 type TestResult = {
@@ -35,10 +56,9 @@ type TestResult = {
 }
 
 type DifficultyLevel = "easy" | "medium" | "hard" | "expert"
-
 type ThemeMode = "light" | "dark" | "system"
-
 type KeyboardLayout = "qwerty" | "dvorak" | "colemak"
+type TextType = "paragraphs" | "quotes"
 
 interface CharacterData {
   char: string
@@ -52,8 +72,6 @@ interface WordData {
   isPartiallyCorrect: boolean
   errorCount: number
 }
-
-type TextSource = "quotes" | "paragraphs" | "code" | "ai-generated"
 
 export default function TypingSpeedTester() {
   const [text, setText] = useState("")
@@ -79,8 +97,7 @@ export default function TypingSpeedTester() {
   const [keyboardLayout, setKeyboardLayout] = useState<KeyboardLayout>("qwerty")
   const [showInstantFeedback, setShowInstantFeedback] = useState(true)
   const [personalBest, setPersonalBest] = useState<TestResult | null>(null)
-  const [textSource, setTextSource] = useState<TextSource>("quotes");
-  const [language, setLanguage] = useState<string>("javascript")
+  const [textType, setTextType] = useState<TextType>("paragraphs")
   const [errorSound, setErrorSound] = useState<HTMLAudioElement | null>(null)
   const [successSound, setSuccessSound] = useState<HTMLAudioElement | null>(null)
   const [finishSound, setFinishSound] = useState<HTMLAudioElement | null>(null)
@@ -210,129 +227,68 @@ export default function TypingSpeedTester() {
     return text.split(/\s+/).filter((word) => word.length > 0).length
   }, [])
 
-  // Fetch random text based on difficulty and source
+  // Fetch text using AI only
   const fetchRandomText = useCallback(async () => {
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      let text = "";
-    
-    // Use Gemini API for AI-generated content or when specifically requested
-    if (textSource === "ai-generated") {
-      try {
-        const response = await fetch("/api/generate-text", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            difficulty,
-            type: "paragraphs", // Default to paragraphs for AI-generated content
-            language: language,
-          }),
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          text = data.content;
-        } else {
-          throw new Error("Gemini API failed");
-        }
-      } catch (geminiError) {
-        console.warn("Gemini API failed:", geminiError);
-        // Fall back to a default message if AI generation fails
-        text = "The AI text generation service is currently unavailable. Please try again later or select a different text source.";
-      }
-    } else if (textSource === "quotes") {
-      // Existing quotes logic
-      let apiUrl = "https://api.quotable.io/random";
-      
-      // Adjust length based on difficulty
-      switch(difficulty) {
+      // Determine word count based on difficulty
+      let wordCount = 50 // default for medium
+      switch (difficulty) {
         case "easy":
-          apiUrl += "?minLength=50&maxLength=100";
-          break;
+          wordCount = 20
+          break
         case "medium":
-          apiUrl += "?minLength=100&maxLength=200";
-          break;
+          wordCount = 50
+          break
         case "hard":
-          apiUrl += "?minLength=200&maxLength=300";
-          break;
+          wordCount = 100
+          break
         case "expert":
-          apiUrl += "?minLength=300&maxLength=500";
-          break;
+          wordCount = 150
+          break
       }
-      
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-      text = data.content;
-    } else if (textSource === "paragraphs") {
-      // Existing paragraphs logic
-      let paragraphCount = 1;
-      
-      switch(difficulty) {
-        case "easy":
-          paragraphCount = 1;
-          break;
-        case "medium":
-          paragraphCount = 2;
-          break;
-        case "hard":
-          paragraphCount = 3;
-          break;
-        case "expert":
-          paragraphCount = 4;
-          break;
+
+      // Make request to AI text generation endpoint
+      const response = await fetch("/api/generate-text", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          difficulty,
+          type: textType,
+          wordCount,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to generate text")
       }
-      
-      const response = await fetch(`https://baconipsum.com/api/?type=all-meat&paras=${paragraphCount}&format=text`);
-      text = await response.text();
-    } else if (textSource === "code") {
-      // Simulated code snippets for different languages
-      const codeSnippets = {
-        javascript: [
-          `function calculateFactorial(n) {\n  if (n === 0 || n === 1) {\n    return 1;\n  }\n  return n * calculateFactorial(n - 1);\n}`,
-          `const fetchData = async (url) => {\n  try {\n    const response = await fetch(url);\n    const data = await response.json();\n    return data;\n  } catch (error) {\n    console.error("Error fetching data:", error);\n  }\n};`,
-          `class Person {\n  constructor(name, age) {\n    this.name = name;\n    this.age = age;\n  }\n\n  greet() {\n    return \`Hello, my name is \${this.name} and I am \${this.age} years old.\`;\n  }\n}`
-        ],
-        python: [
-          `def fibonacci(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a\n\nfor i in range(10):\n    print(fibonacci(i))`,
-          `import requests\n\ndef get_data(url):\n    try:\n        response = requests.get(url)\n        return response.json()\n    except Exception as e:\n        print(f"Error fetching data: {e}")\n        return None`,
-          `class Animal:\n    def __init__(self, name, species):\n        self.name = name\n        self.species = species\n    \n    def make_sound(self):\n        pass\n\nclass Dog(Animal):\n    def make_sound(self):\n        return "Woof!"`
-        ],
-        html: [
-          `<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>Document</title>\n</head>\n<body>\n    <h1>Hello World</h1>\n    <p>This is a paragraph.</p>\n</body>\n</html>`,
-          `<div class="container">\n    <header>\n        <nav>\n            <ul>\n                <li><a href="#">Home</a></li>\n                <li><a href="#">About</a></li>\n                <li><a href="#">Contact</a></li>\n            </ul>\n        </nav>\n    </header>\n    <main>\n        <h1>Welcome</h1>\n    </main>\n</div>`
-        ]
-      };
-      
-      // Get snippets for the selected language or default to JavaScript
-      const snippets = codeSnippets[language as keyof typeof codeSnippets] || codeSnippets.javascript;
-      
-      // Select a random snippet
-      const randomIndex = Math.floor(Math.random() * snippets.length);
-      text = snippets[randomIndex];
+
+      const data = await response.json()
+      const generatedText = data.content
+
+      // Set the sample text
+      setSampleText(generatedText)
+
+      // Count words in the sample text
+      setWordCount(countWords(generatedText))
+
+      // Parse the text into character data
+      const parsedChars: CharacterData[] = generatedText.split("").map((char: string): CharacterData => ({ char }))
+      setParsedText(parsedChars)
+    } catch (error) {
+      console.error("Failed to fetch text:", error)
+      // Fallback to a default text if AI generation fails
+      const fallbackText =
+        "The quick brown fox jumps over the lazy dog. This pangram contains every letter of the English alphabet at least once."
+      setSampleText(fallbackText)
+      setParsedText(fallbackText.split("").map((char) => ({ char })))
+      setWordCount(countWords(fallbackText))
+    } finally {
+      setIsLoading(false)
     }
-    
-    setSampleText(text);
-    
-    // Count words in the sample text
-    setWordCount(countWords(text));
-    
-    // Parse the text into character data
-    const parsedChars = text.split('').map(char => ({ char }));
-    setParsedText(parsedChars);
-    
-  } catch (error) {
-    console.error("Failed to fetch random text:", error);
-    // Fallback to a default text if all APIs fail
-    const fallbackText = "The quick brown fox jumps over the lazy dog. This pangram contains every letter of the English alphabet at least once.";
-    setSampleText(fallbackText);
-    setParsedText(fallbackText.split('').map(char => ({ char })));
-    setWordCount(countWords(fallbackText));
-  } finally {
-    setIsLoading(false);
-  }
-}, [difficulty, textSource, language, countWords]);
+  }, [difficulty, textType, countWords])
 
   useEffect(() => {
     fetchRandomText()
@@ -531,6 +487,11 @@ export default function TypingSpeedTester() {
           successSound.play().catch((e) => console.error("Error playing sound:", e))
         }
       }
+    }
+
+    // Clear current character marker from all characters
+    for (const char of updatedParsedText) {
+      char.isCurrent = false
     }
 
     // Mark current character
@@ -776,107 +737,595 @@ export default function TypingSpeedTester() {
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="theme" className="text-right">
-                        Theme
-                      </Label>
-                      <Select
-                        value={theme}
-                        onValueChange={(value) => setTheme(value as ThemeMode)}
-                        className="col-span-3"
-                      >
-                        <SelectTrigger id="theme">
-                          <SelectValue placeholder="Select theme" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="light">Light</SelectItem>
-                          <SelectItem value="dark">Dark</SelectItem>
-                          <SelectItem value="system">System</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="calculation-method" className="text-right">
                         WPM Calculation
                       </Label>
-                      <Select
-                        value={calculationMethod}
-                        onValueChange={(value) => setCalculationMethod(value as "traditional" | "actual")}
-                        className="col-span-3"
-                      >
-                        <SelectTrigger id="calculation-method">
-                          <SelectValue placeholder="Calculation method" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="actual">Actual Words</SelectItem>
-                          <SelectItem value="traditional">Traditional (chars/5)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="col-span-3">
+                        <Select
+                          value={calculationMethod}
+                          onValueChange={(value) => setCalculationMethod(value as "traditional" | "actual")}
+                        >
+                          <SelectTrigger id="calculation-method">
+                            <SelectValue placeholder="Calculation method" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="actual">Actual Words</SelectItem>
+                            <SelectItem value="traditional">Traditional (chars/5)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="duration" className="text-right">
                         Duration
                       </Label>
-                      <Select
-                        value={testDuration.toString()}
-                        onValueChange={(value) => setTestDuration(Number.parseInt(value))}
-                        className="col-span-3"
-                      >
-                        <SelectTrigger id="duration">
-                          <SelectValue placeholder="Test duration" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="15">15 seconds</SelectItem>
-                          <SelectItem value="30">30 seconds</SelectItem>
-                          <SelectItem value="60">1 minute</SelectItem>
-                          <SelectItem value="120">2 minutes</SelectItem>
-                          <SelectItem value="300">5 minutes</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="text-source" className="text-right">
-                        Text Source
-                      </Label>
-                      <Select
-                        value={textSource}
-                        onValueChange={(value) => setTextSource(value as TextSource)}
-                        disabled={isStarted}
-                      >
-                        <SelectTrigger className="w-[140px]">
-                          <SelectValue placeholder="Text type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ai-generated">AI Generated</SelectItem>
-                          <SelectItem value="quotes">Quotes</SelectItem>
-                          <SelectItem value="paragraphs">Paragraphs</SelectItem>
-                          <SelectItem value="code">Code</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {textSource === "code" && (
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="language" className="text-right">
-                          Language
-                        </Label>
-                        <Select value={language} onValueChange={setLanguage} className="col-span-3">
-                          <SelectTrigger id="language">
-                            <SelectValue placeholder="Programming language" />
+                      <div className="col-span-3">
+                        <Select
+                          value={testDuration.toString()}
+                          onValueChange={(value) => setTestDuration(Number.parseInt(value))}
+                        >
+                          <SelectTrigger id="duration">
+                            <SelectValue placeholder="Test duration" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="javascript">JavaScript</SelectItem>
-                            <SelectItem value="python">Python</SelectItem>
-                            <SelectItem value="html">HTML</SelectItem>
+                            <SelectItem value="15">15 seconds</SelectItem>
+                            <SelectItem value="30">30 seconds</SelectItem>
+                            <SelectItem value="60">1 minute</SelectItem>
+                            <SelectItem value="120">2 minutes</SelectItem>
+                            <SelectItem value="300">5 minutes</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                    )}
+                    </div>
+
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="text-type" className="text-right">
+                        Text Type
+                      </Label>
+                      <div className="col-span-3">
+                        <Select
+                          value={textType}
+                          onValueChange={(value) => setTextType(value as TextType)}
+                          disabled={isStarted}
+                        >
+                          <SelectTrigger id="text-type">
+                            <SelectValue placeholder="Text type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="paragraphs">Paragraphs</SelectItem>
+                            <SelectItem value="quotes">Quotes</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
 
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="keyboard" className="text-right">
                         Keyboard
-                      </Label>\
+                      </Label>
+                      <div className="col-span-3">
+                        <Select
+                          value={keyboardLayout}
+                          onValueChange={(value) => setKeyboardLayout(value as KeyboardLayout)}
+                        >
+                          <SelectTrigger id="keyboard">
+                            <SelectValue placeholder="Keyboard layout" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="qwerty">QWERTY</SelectItem>
+                            <SelectItem value="dvorak">Dvorak</SelectItem>
+                            <SelectItem value="colemak">Colemak</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="sound-toggle" className="text-right">
+                        Sound
+                      </Label>
+                      <div className="flex items-center space-x-2 col-span-3">
+                        <Switch id="sound-toggle" checked={soundEnabled} onCheckedChange={setSoundEnabled} />
+                        <Label htmlFor="sound-toggle">
+                          {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                        </Label>
+                      </div>
+                    </div>
+
+                    {soundEnabled && (
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="volume" className="text-right">
+                          Volume
+                        </Label>
+                        <div className="col-span-3">
+                          <Slider
+                            id="volume"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={[volume]}
+                            onValueChange={(value) => setVolume(value[0])}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="feedback-toggle" className="text-right">
+                        Instant Feedback
+                      </Label>
+                      <div className="flex items-center space-x-2 col-span-3">
+                        <Switch
+                          id="feedback-toggle"
+                          checked={showInstantFeedback}
+                          onCheckedChange={setShowInstantFeedback}
+                        />
+                        <Label htmlFor="feedback-toggle">Show real-time feedback</Label>
+                      </div>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <BarChart3 className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuLabel>Statistics</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={exportHistory}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export History
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={clearHistory}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Clear History
+                  </DropdownMenuItem>
+                  {isFinished && (
+                    <DropdownMenuItem onClick={shareResult}>
+                      <Share2 className="mr-2 h-4 w-4" />
+                      Share Result
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          <CardTitle className="text-3xl mt-2">Typing Speed Test</CardTitle>
+          <CardDescription>Test your typing speed and accuracy with AI-generated texts</CardDescription>
+
+          <div className="flex flex-wrap justify-center gap-2 mt-2">
+            <Select
+              value={difficulty}
+              onValueChange={(value) => setDifficulty(value as DifficultyLevel)}
+              disabled={isStarted}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Difficulty" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="easy">Easy</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="hard">Hard</SelectItem>
+                <SelectItem value="expert">Expert</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={textType} onValueChange={(value) => setTextType(value as TextType)} disabled={isStarted}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Text type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="paragraphs">Paragraphs</SelectItem>
+                <SelectItem value="quotes">Quotes</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-muted-foreground" />
+              <span className="text-xl font-medium">{timeLeft}s</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="text-sm">
+                      WPM: {wpm}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{calculationMethod === "actual" ? "Actual words per minute" : "Characters/5 per minute"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="text-sm">
+                      CPM: {cpm}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Characters Per Minute</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="text-sm">
+                      Accuracy: {accuracy}%
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      {calculationMethod === "actual"
+                        ? "Percentage of correct words"
+                        : "Percentage of correct keystrokes"}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="text-sm">
+                      Errors: {errors}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{calculationMethod === "actual" ? "Number of word errors" : "Number of character errors"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <Info className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>
+                      {calculationMethod === "actual"
+                        ? "Using actual word count: Words are counted when you type a space"
+                        : "Using traditional calculation: 5 characters = 1 word"}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          </div>
+
+          <Progress value={getProgressValue()} className="h-2" />
+
+          {isLoading ? (
+            <div className="p-4 bg-muted rounded-md text-lg leading-relaxed flex justify-center items-center h-32">
+              Loading AI-generated text...
+            </div>
+          ) : (
+            <div className="p-4 bg-muted dark:bg-gray-800 rounded-md text-lg leading-relaxed max-h-48 overflow-y-auto">
+              {renderSampleText()}
+            </div>
+          )}
+
+          <div>
+            <Input
+              ref={inputRef}
+              type="text"
+              value={text}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              onKeyUp={handleKeyUp}
+              disabled={!isStarted || isPaused || isFinished || isLoading}
+              className="w-full p-3 focus:ring-2 focus:ring-primary dark:bg-gray-800 dark:border-gray-700"
+              placeholder={
+                isPaused
+                  ? "Test paused. Press Ctrl+Space to resume"
+                  : isStarted
+                    ? "Start typing..."
+                    : "Click 'Start Test' to begin or press Ctrl+Space"
+              }
+            />
+          </div>
+
+          {/* Word Analysis */}
+          {isStarted && typedWords.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-sm">
+              {typedWords.map((word, index) => (
+                <Badge
+                  key={`word-${word.text}-${index}`}
+                  variant={word.isCorrect ? "default" : word.isPartiallyCorrect ? "outline" : "destructive"}
+                  className="px-2 py-1"
+                >
+                  {word.text}
+                  {!word.isCorrect && <span className="ml-1 text-xs">({word.errorCount})</span>}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {isFinished && (
+            <Tabs defaultValue="results">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="results">
+                  <Trophy className="mr-2 h-4 w-4" />
+                  Results
+                </TabsTrigger>
+                <TabsTrigger value="stats">
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  Stats
+                </TabsTrigger>
+                <TabsTrigger value="history">
+                  <History className="mr-2 h-4 w-4" />
+                  History
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="results" className="mt-4">
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900 rounded-md p-4">
+                  <h3 className="text-xl font-bold mb-2">Test Results</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Words Per Minute</p>
+                      <p className="text-2xl font-bold">{wpm}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {calculationMethod === "actual" ? "Based on actual words" : "Based on characters/5"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Characters Per Minute</p>
+                      <p className="text-2xl font-bold">{cpm}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Accuracy</p>
+                      <p className="text-2xl font-bold">{accuracy}%</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Errors</p>
+                      <p className="text-2xl font-bold">{errors}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Words Typed</p>
+                      <p className="text-2xl font-bold">{typedWords.length}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {correctWords} correct / {typedWords.length - correctWords} incorrect
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Difficulty</p>
+                      <p className="text-2xl font-bold capitalize">{difficulty}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex justify-end">
+                    <Button variant="outline" size="sm" onClick={shareResult}>
+                      <Share2 className="mr-2 h-4 w-4" />
+                      Share Result
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="stats" className="mt-4">
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-900 rounded-md p-4">
+                  <h3 className="text-xl font-bold mb-2">Detailed Statistics</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Characters Typed</p>
+                      <p className="text-xl font-bold">{text.length}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Words Typed</p>
+                      <p className="text-xl font-bold">{typedWords.length}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Correct Words</p>
+                      <p className="text-xl font-bold">{correctWords}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Word Accuracy</p>
+                      <p className="text-xl font-bold">
+                        {typedWords.length > 0 ? Math.round((correctWords / typedWords.length) * 100) : 0}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Average WPM</p>
+                      <p className="text-xl font-bold">
+                        {testHistory.length > 0
+                          ? Math.round(testHistory.reduce((sum, result) => sum + result.wpm, 0) / testHistory.length)
+                          : 0}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Personal Best</p>
+                      <p className="text-xl font-bold">
+                        {personalBest ? `${personalBest.wpm} WPM (${formatDate(personalBest.date)})` : "No record yet"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="history" className="mt-4">
+                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-900 rounded-md p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-xl font-bold">Test History</h3>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={exportHistory}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Export
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={clearHistory}>
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+
+                  {testHistory.length > 0 ? (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {testHistory.map((result) => (
+                        <div key={result.id} className="border rounded p-2 flex justify-between items-center">
+                          <div>
+                            <p className="font-medium">{formatDate(result.date)}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {result.wpm} WPM, {result.accuracy}% accuracy, {result.difficulty}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {result.correctWords}/{result.wordCount} words correct
+                            </p>
+                          </div>
+                          <Badge>{result.errors} errors</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">No test history yet</p>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
+
+          {/* Visual Keyboard */}
+          <div className="hidden md:block">
+            <div className="bg-slate-100 dark:bg-gray-800 p-2 rounded-md">
+              <div className="flex justify-center mb-1">
+                {keyboardLayouts[keyboardLayout][0].map((key) => (
+                  <div
+                    key={`key-${key}`}
+                    className={`w-10 h-10 m-0.5 flex items-center justify-center rounded-md border ${
+                      currentKey === key
+                        ? "bg-primary text-primary-foreground"
+                        : sampleText[text.length] === key
+                          ? "bg-primary/20"
+                          : "bg-white dark:bg-gray-700"
+                    }`}
+                  >
+                    {key.toUpperCase()}
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-center mb-1">
+                <div className="w-5"/> {/* Offset for second row */}
+                {keyboardLayouts[keyboardLayout][1].map((key) => (
+                  <div
+                    key={`key-${key}`}
+                    className={`w-10 h-10 m-0.5 flex items-center justify-center rounded-md border ${
+                      currentKey === key
+                        ? "bg-primary text-primary-foreground"
+                        : sampleText[text.length] === key
+                          ? "bg-primary/20"
+                          : "bg-white dark:bg-gray-700"
+                    }`}
+                  >
+                    {key.toUpperCase()}
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-center">
+                <div className="w-10"/> {/* Offset for third row */}
+                {keyboardLayouts[keyboardLayout][2].map((key) => (
+                  <div
+                    key={`key-${key}`}
+                    className={`w-10 h-10 m-0.5 flex items-center justify-center rounded-md border ${
+                      currentKey === key
+                        ? "bg-primary text-primary-foreground"
+                        : sampleText[text.length] === key
+                          ? "bg-primary/20"
+                          : "bg-white dark:bg-gray-700"
+                    }`}
+                  >
+                    {key.toUpperCase()}
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-center mt-1">
+                <div
+                  className={`w-64 h-10 m-0.5 flex items-center justify-center rounded-md border ${
+                    currentKey === " "
+                      ? "bg-primary text-primary-foreground"
+                      : sampleText[text.length] === " "
+                        ? "bg-primary/20"
+                        : "bg-white dark:bg-gray-700"
+                  }`}
+                >
+                  SPACE
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center text-sm text-muted-foreground">
+            <p>
+              Press <kbd className="px-1 py-0.5 bg-muted rounded border">Ctrl</kbd> +{" "}
+              <kbd className="px-1 py-0.5 bg-muted rounded border">Space</kbd> to start/pause,{" "}
+              <kbd className="px-1 py-0.5 bg-muted rounded border">Esc</kbd> to reset
+            </p>
+          </div>
+        </CardContent>
+
+        <CardFooter className="flex justify-center gap-4">
+          {!isStarted && !isFinished && (
+            <Button onClick={startTest} size="lg" disabled={isLoading}>
+              Start Test
+            </Button>
+          )}
+
+          {isStarted && !isPaused && (
+            <Button onClick={pauseTest} variant="outline" size="lg">
+              Pause
+            </Button>
+          )}
+
+          {isStarted && isPaused && (
+            <Button onClick={resumeTest} size="lg">
+              Resume
+            </Button>
+          )}
+
+          {(isStarted || isPaused) && (
+            <Button variant="outline" onClick={resetTest} size="lg">
+              Reset
+            </Button>
+          )}
+
+          {isFinished && (
+            <Button onClick={startTest} size="lg">
+              Try Again
+            </Button>
+          )}
+
+          {isFinished && (
+            <Button variant="outline" onClick={resetTest} size="lg">
+              <RotateCcw className="mr-2 h-4 w-4" />
+              New Test
+            </Button>
+          )}
+
+          {!isStarted && !isFinished && !isLoading && (
+            <Button variant="outline" onClick={fetchRandomText} size="lg">
+              <RotateCcw className="mr-2 h-4 w-4" />
+              New Text
+            </Button>
+          )}
+        </CardFooter>
+      </Card>
+    </div>
+  )
+}
 

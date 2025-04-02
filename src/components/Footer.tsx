@@ -12,7 +12,7 @@ export function Footer() {
           </Link>
           . The source code is available on{" "}
           <Link
-            href="https://github.com"
+            href="https://github.com/0xshariq"
             target="_blank"
             rel="noreferrer"
             className="font-medium underline underline-offset-4"
@@ -22,23 +22,19 @@ export function Footer() {
           .
         </p>
         <div className="flex items-center space-x-4">
-          <Link href="https://github.com" target="_blank" rel="noreferrer">
+          <Link href="https://github.com/0xshariq" target="_blank" rel="noreferrer">
             <Github className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
             <span className="sr-only">GitHub</span>
           </Link>
-          <Link href="https://twitter.com" target="_blank" rel="noreferrer">
+          <Link href="https://x.com/Sharique_Ch" target="_blank" rel="noreferrer">
             <Twitter className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
             <span className="sr-only">Twitter</span>
           </Link>
-          <Link href="https://linkedin.com" target="_blank" rel="noreferrer">
+          <Link href="https://linkedin.com/in/0xshariq" target="_blank" rel="noreferrer">
             <Linkedin className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
             <span className="sr-only">LinkedIn</span>
           </Link>
-          <Link href="https://facebook.com" target="_blank" rel="noreferrer">
-            <Facebook className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
-            <span className="sr-only">Facebook</span>
-          </Link>
-          <Link href="https://instagram.com" target="_blank" rel="noreferrer">
+          <Link href="https://instagram.com/sharique1303" target="_blank" rel="noreferrer">
             <Instagram className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
             <span className="sr-only">Instagram</span>
           </Link>
