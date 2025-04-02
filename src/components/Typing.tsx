@@ -95,7 +95,6 @@ export default function TypingSpeedTester() {
   const [cpm, setCpm] = useState(0)
   const [accuracy, setAccuracy] = useState(100)
   const [errors, setErrors] = useState(0)
-  const [errorPositions, setErrorPositions] = useState<number[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [difficulty, setDifficulty] = useState<DifficultyLevel>("medium")
   const [testHistory, setTestHistory] = useState<TestResult[]>([])
@@ -388,7 +387,6 @@ export default function TypingSpeedTester() {
     setCpm(0)
     setAccuracy(100)
     setErrors(0)
-    setErrorPositions([])
     setTypedWords([])
     setCorrectWords(0)
     setStreakCount(0)
@@ -423,7 +421,6 @@ export default function TypingSpeedTester() {
     setCpm(0)
     setAccuracy(100)
     setErrors(0)
-    setErrorPositions([])
     setTypedWords([])
     setCorrectWords(0)
     setStreakCount(0)
@@ -590,7 +587,6 @@ export default function TypingSpeedTester() {
 
     setParsedText(updatedParsedText)
     setErrors(errorCount)
-    setErrorPositions(newErrorPositions)
 
     // Calculate accuracy
     let accuracyValue = 100
