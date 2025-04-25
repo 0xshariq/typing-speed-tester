@@ -5,7 +5,7 @@ interface TextDisplayProps {
   isLoading: boolean
   parsedText: CharacterData[]
   fontSizeClass: string
-  textContainerRef: React.RefObject<HTMLDivElement>
+  textContainerRef: React.RefObject<HTMLDivElement | null>
 }
 
 export function TextDisplay({ isLoading, parsedText, fontSizeClass, textContainerRef }: TextDisplayProps) {

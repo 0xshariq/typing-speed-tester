@@ -53,8 +53,8 @@ interface TypingTestContextType {
   showStreakCounter: boolean
   totalKeystrokes: number
   correctKeystrokes: number
-  inputRef: React.RefObject<HTMLInputElement>
-  textContainerRef: React.RefObject<HTMLDivElement>
+  inputRef: React.RefObject<HTMLInputElement | null>
+  textContainerRef: React.RefObject<HTMLDivElement | null>
 
   // Actions
   setText: (text: string) => void
@@ -75,6 +75,7 @@ interface TypingTestContextType {
   pauseTest: () => void
   resumeTest: () => void
   resetTest: () => void
+  resetAllSettings: () => void
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   handleKeyDown: (e: React.KeyboardEvent) => void
   handleKeyUp: () => void

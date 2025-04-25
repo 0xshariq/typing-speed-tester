@@ -180,6 +180,125 @@ export function useTypingTest() {
     fetchRandomText()
   }, [fetchRandomText])
 
+  // Fix the calculateStats function to be memoized with useCallback to avoid dependency issues
+  const calculateStats = useCallback(() => {
+    // Use elapsed time for more accurate calculations
+    const elapsedMinutes = getElapsedMinutes()
+
+    if (elapsedMinutes <= 0) {
+      setWpm(0)
+      setNetWpm(0)
+      setCpm(0)
+      return
+    }
+
+    if (calculationMethod === "traditional") {
+      // Traditional WPM calculation (characters / 5 / minutes)
+      const words = text.length / 5
+      const calculatedWpm = Math.round(words / elapsedMinutes)
+      setWpm(calculatedWpm)
+
+      // Net WPM = Gross WPM - (Errors / Minutes)
+      const calculatedNetWpm = Math.max(0, calculatedWpm - Math.round(errors / elapsedMinutes))
+      setNetWpm(calculatedNetWpm)
+
+      // Traditional CPM calculation
+      const calculatedCpm = Math.round(text.length / elapsedMinutes)
+      setCpm(calculatedCpm)
+    } else if (calculationMethod === "actual") {
+      // Actual word-based WPM calculation
+      const actualWordCount = typedWords.length
+      const calculatedWpm = Math.round(actualWordCount / elapsedMinutes)
+      setWpm(calculatedWpm)
+
+      // Net WPM = Gross WPM - (Errors / Minutes)
+      const calculatedNetWpm = Math.max(
+        0,
+        calculatedWpm - Math.round((typedWords.length - correctWords) / elapsedMinutes),
+      )
+      setNetWpm(calculatedNetWpm)
+
+      // Actual CPM calculation
+      const calculatedCpm = Math.round(text.length / elapsedMinutes)
+      setCpm(calculatedCpm)
+    } else {
+      // Standard calculation (most accurate)
+      // WPM = (All typed entries / 5) / minutes
+      const allEntries = text.length
+      const calculatedWpm = Math.round(allEntries / 5 / elapsedMinutes)
+      setWpm(calculatedWpm)
+
+      // Net WPM = ((All typed entries / 5) - Errors) / minutes
+      const calculatedNetWpm = Math.max(0, Math.round((allEntries / 5 - errors) / elapsedMinutes))
+      setNetWpm(calculatedNetWpm)
+
+      // CPM = Characters per minute
+      const calculatedCpm = Math.round(text.length / elapsedMinutes)
+      setCpm(calculatedCpm)
+    }
+  }, [text, errors, typedWords, correctWords, calculationMethod])
+
+  // Fix the finishTest function to be memoized with useCallback
+  const finishTest = useCallback(() => {
+    setIsFinished(true)
+    setIsStarted(false)
+    setIsPaused(false)
+
+    // Play finish sound
+    if (soundEnabled && finishSound) {
+      finishSound.play().catch((e) => console.error("Error playing sound:", e))
+    }
+
+    // Calculate final stats
+    calculateStats()
+
+    // Save test result to history
+    const newResult: TestResult = {
+      id: uuidv4(),
+      wpm,
+      netWpm,
+      cpm,
+      accuracy,
+      errors,
+      errorRate,
+      time: testDuration - timeLeft,
+      date: new Date(),
+      difficulty,
+      textLength: sampleText.length,
+      wordCount,
+      correctWords,
+      totalKeystrokes,
+      correctKeystrokes,
+    }
+
+    setTestHistory((prev) => [newResult, ...prev].slice(0, 20)) // Keep only last 20 tests
+
+    // Update personal best
+    if (!personalBest || newResult.wpm > personalBest.wpm) {
+      setPersonalBest(newResult)
+    }
+  }, [
+    soundEnabled,
+    finishSound,
+    calculateStats,
+    wpm,
+    netWpm,
+    cpm,
+    accuracy,
+    errors,
+    errorRate,
+    testDuration,
+    timeLeft,
+    difficulty,
+    sampleText.length,
+    wordCount,
+    correctWords,
+    totalKeystrokes,
+    correctKeystrokes,
+    setTestHistory,
+    personalBest,
+  ])
+
   useEffect(() => {
     let timer: NodeJS.Timeout
 
@@ -197,7 +316,42 @@ export function useTypingTest() {
     }
 
     return () => clearInterval(timer)
-  }, [isStarted, isPaused, timeLeft])
+  }, [isStarted, isPaused, timeLeft, calculateStats, finishTest])
+
+  // Add this function to reset settings on refresh
+  useEffect(() => {
+    // Reset settings that should not persist between refreshes
+    const resetOnRefresh = () => {
+      setText("")
+      setIsStarted(false)
+      setIsPaused(false)
+      setIsFinished(false)
+      setTimeLeft(testDuration)
+      setWpm(0)
+      setNetWpm(0)
+      setCpm(0)
+      setAccuracy(100)
+      setErrors(0)
+      setErrorRate(0)
+      setTypedWords([])
+      setCorrectWords(0)
+      setStreakCount(0)
+      setMaxStreak(0)
+      setTotalKeystrokes(0)
+      setCorrectKeystrokes(0)
+      startTimeRef.current = null
+    }
+
+    // Reset on component mount
+    resetOnRefresh()
+
+    // Add event listener for page refresh/unload
+    window.addEventListener("beforeunload", resetOnRefresh)
+
+    return () => {
+      window.removeEventListener("beforeunload", resetOnRefresh)
+    }
+  }, [testDuration])
 
   // Scroll to current position in text
   useEffect(() => {
@@ -268,46 +422,6 @@ export function useTypingTest() {
     setCorrectKeystrokes(0)
     startTimeRef.current = null
     fetchRandomText()
-  }
-
-  const finishTest = () => {
-    setIsFinished(true)
-    setIsStarted(false)
-    setIsPaused(false)
-
-    // Play finish sound
-    if (soundEnabled && finishSound) {
-      finishSound.play().catch((e) => console.error("Error playing sound:", e))
-    }
-
-    // Calculate final stats
-    calculateStats()
-
-    // Save test result to history
-    const newResult: TestResult = {
-      id: uuidv4(),
-      wpm,
-      netWpm,
-      cpm,
-      accuracy,
-      errors,
-      errorRate,
-      time: testDuration - timeLeft,
-      date: new Date(),
-      difficulty,
-      textLength: sampleText.length,
-      wordCount,
-      correctWords,
-      totalKeystrokes,
-      correctKeystrokes,
-    }
-
-    setTestHistory((prev) => [newResult, ...prev].slice(0, 20)) // Keep only last 20 tests
-
-    // Update personal best
-    if (!personalBest || newResult.wpm > personalBest.wpm) {
-      setPersonalBest(newResult)
-    }
   }
 
   // Analyze typed words
@@ -506,63 +620,6 @@ export function useTypingTest() {
     return elapsedMs / 60000 // Convert to minutes
   }
 
-  const calculateStats = () => {
-    // Use elapsed time for more accurate calculations
-    const elapsedMinutes = getElapsedMinutes()
-
-    if (elapsedMinutes <= 0) {
-      setWpm(0)
-      setNetWpm(0)
-      setCpm(0)
-      return
-    }
-
-    if (calculationMethod === "traditional") {
-      // Traditional WPM calculation (characters / 5 / minutes)
-      const words = text.length / 5
-      const calculatedWpm = Math.round(words / elapsedMinutes)
-      setWpm(calculatedWpm)
-
-      // Net WPM = Gross WPM - (Errors / Minutes)
-      const calculatedNetWpm = Math.max(0, calculatedWpm - Math.round(errors / elapsedMinutes))
-      setNetWpm(calculatedNetWpm)
-
-      // Traditional CPM calculation
-      const calculatedCpm = Math.round(text.length / elapsedMinutes)
-      setCpm(calculatedCpm)
-    } else if (calculationMethod === "actual") {
-      // Actual word-based WPM calculation
-      const actualWordCount = typedWords.length
-      const calculatedWpm = Math.round(actualWordCount / elapsedMinutes)
-      setWpm(calculatedWpm)
-
-      // Net WPM = Gross WPM - (Errors / Minutes)
-      const calculatedNetWpm = Math.max(
-        0,
-        calculatedWpm - Math.round((typedWords.length - correctWords) / elapsedMinutes),
-      )
-      setNetWpm(calculatedNetWpm)
-
-      // Actual CPM calculation
-      const calculatedCpm = Math.round(text.length / elapsedMinutes)
-      setCpm(calculatedCpm)
-    } else {
-      // Standard calculation (most accurate)
-      // WPM = (All typed entries / 5) / minutes
-      const allEntries = text.length
-      const calculatedWpm = Math.round(allEntries / 5 / elapsedMinutes)
-      setWpm(calculatedWpm)
-
-      // Net WPM = ((All typed entries / 5) - Errors) / minutes
-      const calculatedNetWpm = Math.max(0, Math.round((allEntries / 5 - errors) / elapsedMinutes))
-      setNetWpm(calculatedNetWpm)
-
-      // CPM = Characters per minute
-      const calculatedCpm = Math.round(text.length / elapsedMinutes)
-      setCpm(calculatedCpm)
-    }
-  }
-
   const getFontSizeClass = () => {
     switch (fontSize) {
       case "small":
@@ -638,6 +695,67 @@ export function useTypingTest() {
       .catch((err) => console.error("Failed to copy:", err))
   }
 
+  // Add a function to reset all settings to their defaults
+  const resetAllSettings = useCallback(() => {
+    // Reset all settings to defaults
+    setTestDuration(60)
+    setDifficulty("medium")
+    setTheme("system")
+    setSoundEnabled(false)
+    setVolume(50)
+    setKeyboardLayout("qwerty")
+    setShowInstantFeedback(true)
+    setTextType("paragraphs")
+    setCalculationMethod("standard")
+    setFontSize("medium")
+    setShowKeyboard(true)
+    setFocusMode(false)
+    setShowStreakCounter(true)
+
+    // Also reset the current test state
+    setText("")
+    setIsStarted(false)
+    setIsPaused(false)
+    setIsFinished(false)
+    setTimeLeft(60)
+    setWpm(0)
+    setNetWpm(0)
+    setCpm(0)
+    setAccuracy(100)
+    setErrors(0)
+    setErrorRate(0)
+    setTypedWords([])
+    setCorrectWords(0)
+    setStreakCount(0)
+    setMaxStreak(0)
+    setTotalKeystrokes(0)
+    setCorrectKeystrokes(0)
+    startTimeRef.current = null
+
+    // Clear localStorage
+    if (typeof window !== "undefined") {
+      localStorage.clear()
+    }
+
+    // Fetch new text
+    fetchRandomText()
+  }, [
+    setTestDuration,
+    setDifficulty,
+    setTheme,
+    setSoundEnabled,
+    setVolume,
+    setKeyboardLayout,
+    setShowInstantFeedback,
+    setTextType,
+    setCalculationMethod,
+    setFontSize,
+    setShowKeyboard,
+    setFocusMode,
+    setShowStreakCounter,
+    fetchRandomText,
+  ])
+
   return {
     // State
     text,
@@ -699,6 +817,7 @@ export function useTypingTest() {
     pauseTest,
     resumeTest,
     resetTest,
+    resetAllSettings, // Add the new function
     handleInputChange,
     handleKeyDown,
     handleKeyUp,
