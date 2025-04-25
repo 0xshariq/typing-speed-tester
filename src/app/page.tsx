@@ -1,10 +1,14 @@
-import React from 'react'
-import TypingSpeedTester from '@/components/Typing'
+import TypingSpeedTester from "@/components/typing-test/typing-speed-tester"
+import { TypingTestProvider } from "@/components/typing-test/typing-test-provider"
 
-const Home = () => {
+export default function Home() {
   return (
-    <TypingSpeedTester />
+    <div className="flex min-h-screen flex-col">
+      <main className="flex-1 flex items-center justify-center">
+        <TypingTestProvider>
+          <TypingSpeedTester />
+        </TypingTestProvider>
+      </main>
+    </div>
   )
 }
-
-export default Home
