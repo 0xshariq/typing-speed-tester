@@ -65,12 +65,13 @@ export function SettingsDialog() {
             <div className="col-span-3">
               <Select
                 value={calculationMethod}
-                onValueChange={(value) => setCalculationMethod(value as "traditional" | "actual")}
+                onValueChange={(value) => setCalculationMethod(value as "traditional" | "actual" | "standard")}
               >
                 <SelectTrigger id="calculation-method">
                   <SelectValue placeholder="Calculation method" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="standard">Standard (Recommended)</SelectItem>
                   <SelectItem value="actual">Actual Words</SelectItem>
                   <SelectItem value="traditional">Traditional (chars/5)</SelectItem>
                 </SelectContent>
@@ -106,7 +107,7 @@ export function SettingsDialog() {
               Text Type
             </Label>
             <div className="col-span-3">
-              <Select value={textType} onValueChange={(value) => setTextType(value as any)} disabled={isStarted}>
+              <Select value={textType} onValueChange={(value) => setTextType(value as "paragraphs" | "quotes")} disabled={isStarted}>
                 <SelectTrigger id="text-type">
                   <SelectValue placeholder="Text type" />
                 </SelectTrigger>

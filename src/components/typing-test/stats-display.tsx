@@ -9,10 +9,12 @@ interface StatsDisplayProps {
   maxStreak: number
   showStreakCounter: boolean
   wpm: number
+  netWpm: number
   cpm: number
   accuracy: number
   errors: number
-  calculationMethod: "traditional" | "actual"
+  errorRate: number
+  calculationMethod: "traditional" | "actual" | "standard"
 }
 
 export function StatsDisplay({
@@ -21,9 +23,11 @@ export function StatsDisplay({
   maxStreak,
   showStreakCounter,
   wpm,
+  netWpm,
   cpm,
   accuracy,
   errors,
+  errorRate,
   calculationMethod,
 }: StatsDisplayProps) {
   return (
@@ -73,7 +77,26 @@ export function StatsDisplay({
               </Badge>
             </TooltipTrigger>
             <TooltipContent>
-              <p>{calculationMethod === "actual" ? "Actual words per minute" : "Characters/5 per minute"}</p>
+              <p>
+                {calculationMethod === "standard"
+                  ? "Standard words per minute (all typed entries / 5 / minutes)"
+                  : calculationMethod === "actual"
+                    ? "Actual words per minute"
+                    : "Characters/5 per minute"}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className="text-sm">
+                Net WPM: {netWpm}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Net words per minute (WPM minus errors per minute)</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -100,7 +123,11 @@ export function StatsDisplay({
             </TooltipTrigger>
             <TooltipContent>
               <p>
-                {calculationMethod === "actual" ? "Percentage of correct words" : "Percentage of correct keystrokes"}
+                {calculationMethod === "standard"
+                  ? "Percentage of correct keystrokes"
+                  : calculationMethod === "actual"
+                    ? "Percentage of correct words"
+                    : "Percentage of correct keystrokes"}
               </p>
             </TooltipContent>
           </Tooltip>
@@ -114,7 +141,26 @@ export function StatsDisplay({
               </Badge>
             </TooltipTrigger>
             <TooltipContent>
-              <p>{calculationMethod === "actual" ? "Number of word errors" : "Number of character errors"}</p>
+              <p>
+                {calculationMethod === "standard"
+                  ? "Number of incorrect keystrokes"
+                  : calculationMethod === "actual"
+                    ? "Number of word errors"
+                    : "Number of character errors"}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className="text-sm">
+                Error Rate: {errorRate}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Errors per minute</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -128,9 +174,11 @@ export function StatsDisplay({
             </TooltipTrigger>
             <TooltipContent className="max-w-xs">
               <p>
-                {calculationMethod === "actual"
-                  ? "Using actual word count: Words are counted when you type a space"
-                  : "Using traditional calculation: 5 characters = 1 word"}
+                {calculationMethod === "standard"
+                  ? "Using standard calculation: All typed entries / 5 / minutes, with accuracy based on correct keystrokes"
+                  : calculationMethod === "actual"
+                    ? "Using actual word count: Words are counted when you type a space"
+                    : "Using traditional calculation: 5 characters = 1 word"}
               </p>
             </TooltipContent>
           </Tooltip>

@@ -26,9 +26,11 @@ export function useTypingTest() {
   const [timeLeft, setTimeLeft] = useState(60)
   const [testDuration, setTestDuration] = useLocalStorage<number>("typingTestDuration", 60)
   const [wpm, setWpm] = useState(0)
+  const [netWpm, setNetWpm] = useState(0) // Added net WPM
   const [cpm, setCpm] = useState(0)
   const [accuracy, setAccuracy] = useState(100)
   const [errors, setErrors] = useState(0)
+  const [errorRate, setErrorRate] = useState(0) // Added error rate
   const [isLoading, setIsLoading] = useState(false)
   const [difficulty, setDifficulty] = useLocalStorage<DifficultyLevel>("typingTestDifficulty", "medium")
   const [testHistory, setTestHistory] = useLocalStorage<TestResult[]>("typingTestHistory", [])
@@ -46,9 +48,9 @@ export function useTypingTest() {
   const [wordCount, setWordCount] = useState(0)
   const [correctWords, setCorrectWords] = useState(0)
   const [typedWords, setTypedWords] = useState<WordData[]>([])
-  const [calculationMethod, setCalculationMethod] = useLocalStorage<"traditional" | "actual">(
+  const [calculationMethod, setCalculationMethod] = useLocalStorage<"traditional" | "actual" | "standard">(
     "typingTestCalculationMethod",
-    "actual",
+    "standard", // Changed default to standard
   )
   const [fontSize, setFontSize] = useLocalStorage<FontSize>("typingTestFontSize", "medium")
   const [showKeyboard, setShowKeyboard] = useLocalStorage<boolean>("typingTestShowKeyboard", true)
@@ -56,8 +58,11 @@ export function useTypingTest() {
   const [streakCount, setStreakCount] = useState(0)
   const [maxStreak, setMaxStreak] = useState(0)
   const [showStreakCounter, setShowStreakCounter] = useLocalStorage<boolean>("typingTestShowStreakCounter", true)
+  const [totalKeystrokes, setTotalKeystrokes] = useState(0) // Added total keystrokes
+  const [correctKeystrokes, setCorrectKeystrokes] = useState(0) // Added correct keystrokes
   const inputRef = useRef<HTMLInputElement>(null)
   const textContainerRef = useRef<HTMLDivElement>(null)
+  const startTimeRef = useRef<number | null>(null)
 
   // Initialize audio elements
   useEffect(() => {
@@ -179,6 +184,10 @@ export function useTypingTest() {
     let timer: NodeJS.Timeout
 
     if (isStarted && !isPaused && timeLeft > 0) {
+      if (!startTimeRef.current) {
+        startTimeRef.current = Date.now()
+      }
+
       timer = setInterval(() => {
         setTimeLeft((prev) => prev - 1)
         calculateStats()
@@ -207,13 +216,18 @@ export function useTypingTest() {
     setIsFinished(false)
     setTimeLeft(testDuration)
     setWpm(0)
+    setNetWpm(0)
     setCpm(0)
     setAccuracy(100)
     setErrors(0)
+    setErrorRate(0)
     setTypedWords([])
     setCorrectWords(0)
     setStreakCount(0)
     setMaxStreak(0)
+    setTotalKeystrokes(0)
+    setCorrectKeystrokes(0)
+    startTimeRef.current = null
 
     // Reset parsed text
     setParsedText(sampleText.split("").map((char) => ({ char })))
@@ -241,13 +255,18 @@ export function useTypingTest() {
     setIsFinished(false)
     setTimeLeft(testDuration)
     setWpm(0)
+    setNetWpm(0)
     setCpm(0)
     setAccuracy(100)
     setErrors(0)
+    setErrorRate(0)
     setTypedWords([])
     setCorrectWords(0)
     setStreakCount(0)
     setMaxStreak(0)
+    setTotalKeystrokes(0)
+    setCorrectKeystrokes(0)
+    startTimeRef.current = null
     fetchRandomText()
   }
 
@@ -261,19 +280,26 @@ export function useTypingTest() {
       finishSound.play().catch((e) => console.error("Error playing sound:", e))
     }
 
+    // Calculate final stats
+    calculateStats()
+
     // Save test result to history
     const newResult: TestResult = {
       id: uuidv4(),
       wpm,
+      netWpm,
       cpm,
       accuracy,
       errors,
+      errorRate,
       time: testDuration - timeLeft,
       date: new Date(),
       difficulty,
       textLength: sampleText.length,
       wordCount,
       correctWords,
+      totalKeystrokes,
+      correctKeystrokes,
     }
 
     setTestHistory((prev) => [newResult, ...prev].slice(0, 20)) // Keep only last 20 tests
@@ -305,15 +331,10 @@ export function useTypingTest() {
       let errorCount = 0
 
       // Count character errors in the word
-      for (let j = 0; j < inputWord.length; j++) {
-        if (j >= sampleWord.length || inputWord[j] !== sampleWord[j]) {
+      for (let j = 0; j < Math.max(inputWord.length, sampleWord.length); j++) {
+        if (j >= inputWord.length || j >= sampleWord.length || inputWord[j] !== sampleWord[j]) {
           errorCount++
         }
-      }
-
-      // Add errors for missing characters
-      if (inputWord.length < sampleWord.length) {
-        errorCount += sampleWord.length - inputWord.length
       }
 
       if (isCorrect) {
@@ -341,10 +362,17 @@ export function useTypingTest() {
     const inputValue = e.target.value
     setText(inputValue)
 
+    // Start tracking time on first keystroke
+    if (isStarted && !startTimeRef.current) {
+      startTimeRef.current = Date.now()
+    }
+
     // Calculate errors and track error positions
     let errorCount = 0
     const updatedParsedText = [...parsedText]
     let currentStreak = streakCount
+    const newTotalKeystrokes = totalKeystrokes + 1
+    let newCorrectKeystrokes = correctKeystrokes
 
     // Analyze character-by-character errors
     for (let i = 0; i < inputValue.length; i++) {
@@ -369,6 +397,7 @@ export function useTypingTest() {
           if (i === inputValue.length - 1) {
             // Only for the last character typed
             currentStreak++
+            newCorrectKeystrokes++
             setMaxStreak(Math.max(maxStreak, currentStreak))
 
             // Play success sound for the last character typed if it's correct
@@ -382,6 +411,8 @@ export function useTypingTest() {
     }
 
     setStreakCount(currentStreak)
+    setTotalKeystrokes(newTotalKeystrokes)
+    setCorrectKeystrokes(newCorrectKeystrokes)
 
     // Clear current character marker from all characters
     for (const char of updatedParsedText) {
@@ -402,25 +433,21 @@ export function useTypingTest() {
     setCorrectWords(correctWordCount)
 
     // Use word-based error count if using actual calculation method
-    if (calculationMethod === "actual") {
+    if (calculationMethod === "actual" || calculationMethod === "standard") {
       errorCount = totalErrorCount
     }
 
     setParsedText(updatedParsedText)
     setErrors(errorCount)
 
-    // Calculate accuracy
-    let accuracyValue = 100
-    if (calculationMethod === "traditional") {
-      // Traditional: character-based accuracy
-      accuracyValue = inputValue.length > 0 ? Math.max(0, 100 - (errorCount / inputValue.length) * 100) : 100
-    } else {
-      // Actual: word-based accuracy
-      const typedWordCount = words.length
-      accuracyValue = typedWordCount > 0 ? Math.max(0, 100 * (correctWordCount / typedWordCount)) : 100
+    // Calculate error rate (errors per minute)
+    const elapsedMinutes = getElapsedMinutes()
+    if (elapsedMinutes > 0) {
+      setErrorRate(Math.round(errorCount / elapsedMinutes))
     }
 
-    setAccuracy(Math.round(accuracyValue))
+    // Calculate accuracy
+    calculateAccuracy(inputValue, errorCount, words, correctWordCount)
 
     // Calculate stats
     calculateStats()
@@ -429,6 +456,24 @@ export function useTypingTest() {
     if (inputValue.length === sampleText.length) {
       finishTest()
     }
+  }
+
+  const calculateAccuracy = (inputValue: string, errorCount: number, words: WordData[], correctWordCount: number) => {
+    let accuracyValue = 100
+
+    if (calculationMethod === "traditional") {
+      // Traditional: character-based accuracy
+      accuracyValue = inputValue.length > 0 ? Math.max(0, 100 - (errorCount / inputValue.length) * 100) : 100
+    } else if (calculationMethod === "actual") {
+      // Actual: word-based accuracy
+      const typedWordCount = words.length
+      accuracyValue = typedWordCount > 0 ? Math.max(0, 100 * (correctWordCount / typedWordCount)) : 100
+    } else {
+      // Standard: correct keystrokes / total keystrokes
+      accuracyValue = totalKeystrokes > 0 ? Math.max(0, 100 * (correctKeystrokes / totalKeystrokes)) : 100
+    }
+
+    setAccuracy(Math.round(accuracyValue))
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -455,11 +500,19 @@ export function useTypingTest() {
     setCurrentKey(null)
   }
 
-  const calculateStats = () => {
-    const minutes = (testDuration - timeLeft) / 60
+  const getElapsedMinutes = () => {
+    if (!startTimeRef.current) return 0
+    const elapsedMs = Date.now() - startTimeRef.current
+    return elapsedMs / 60000 // Convert to minutes
+  }
 
-    if (minutes <= 0) {
+  const calculateStats = () => {
+    // Use elapsed time for more accurate calculations
+    const elapsedMinutes = getElapsedMinutes()
+
+    if (elapsedMinutes <= 0) {
       setWpm(0)
+      setNetWpm(0)
       setCpm(0)
       return
     }
@@ -467,20 +520,45 @@ export function useTypingTest() {
     if (calculationMethod === "traditional") {
       // Traditional WPM calculation (characters / 5 / minutes)
       const words = text.length / 5
-      const calculatedWpm = Math.round(words / minutes)
+      const calculatedWpm = Math.round(words / elapsedMinutes)
       setWpm(calculatedWpm)
+
+      // Net WPM = Gross WPM - (Errors / Minutes)
+      const calculatedNetWpm = Math.max(0, calculatedWpm - Math.round(errors / elapsedMinutes))
+      setNetWpm(calculatedNetWpm)
 
       // Traditional CPM calculation
-      const calculatedCpm = Math.round(text.length / minutes)
+      const calculatedCpm = Math.round(text.length / elapsedMinutes)
       setCpm(calculatedCpm)
-    } else {
+    } else if (calculationMethod === "actual") {
       // Actual word-based WPM calculation
       const actualWordCount = typedWords.length
-      const calculatedWpm = Math.round(actualWordCount / minutes)
+      const calculatedWpm = Math.round(actualWordCount / elapsedMinutes)
       setWpm(calculatedWpm)
 
+      // Net WPM = Gross WPM - (Errors / Minutes)
+      const calculatedNetWpm = Math.max(
+        0,
+        calculatedWpm - Math.round((typedWords.length - correctWords) / elapsedMinutes),
+      )
+      setNetWpm(calculatedNetWpm)
+
       // Actual CPM calculation
-      const calculatedCpm = Math.round(text.length / minutes)
+      const calculatedCpm = Math.round(text.length / elapsedMinutes)
+      setCpm(calculatedCpm)
+    } else {
+      // Standard calculation (most accurate)
+      // WPM = (All typed entries / 5) / minutes
+      const allEntries = text.length
+      const calculatedWpm = Math.round(allEntries / 5 / elapsedMinutes)
+      setWpm(calculatedWpm)
+
+      // Net WPM = ((All typed entries / 5) - Errors) / minutes
+      const calculatedNetWpm = Math.max(0, Math.round((allEntries / 5 - errors) / elapsedMinutes))
+      setNetWpm(calculatedNetWpm)
+
+      // CPM = Characters per minute
+      const calculatedCpm = Math.round(text.length / elapsedMinutes)
       setCpm(calculatedCpm)
     }
   }
@@ -533,7 +611,7 @@ export function useTypingTest() {
   const shareResult = () => {
     if (!isFinished) return
 
-    const shareText = `I just typed ${wpm} WPM with ${accuracy}% accuracy on the Typing Speed Tester! Can you beat my score?`
+    const shareText = `I just typed ${wpm} WPM (${netWpm} Net WPM) with ${accuracy}% accuracy on the Typing Speed Tester! Can you beat my score?`
 
     if (navigator.share) {
       navigator
@@ -571,9 +649,11 @@ export function useTypingTest() {
     timeLeft,
     testDuration,
     wpm,
+    netWpm,
     cpm,
     accuracy,
     errors,
+    errorRate,
     isLoading,
     difficulty,
     testHistory,
@@ -595,6 +675,8 @@ export function useTypingTest() {
     streakCount,
     maxStreak,
     showStreakCounter,
+    totalKeystrokes,
+    correctKeystrokes,
     inputRef,
     textContainerRef,
 

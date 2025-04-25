@@ -34,9 +34,11 @@ export default function TypingSpeedTester() {
     maxStreak,
     showStreakCounter,
     wpm,
+    netWpm,
     cpm,
     accuracy,
     errors,
+    errorRate,
     calculationMethod,
     getProgressValue,
     isLoading,
@@ -58,6 +60,8 @@ export default function TypingSpeedTester() {
     correctWords,
     testHistory,
     formatDate,
+    totalKeystrokes,
+    correctKeystrokes,
   } = useContext(TypingTestContext)
 
   return (
@@ -86,9 +90,11 @@ export default function TypingSpeedTester() {
             maxStreak={maxStreak}
             showStreakCounter={showStreakCounter}
             wpm={wpm}
+            netWpm={netWpm}
             cpm={cpm}
             accuracy={accuracy}
             errors={errors}
+            errorRate={errorRate}
             calculationMethod={calculationMethod}
           />
 
@@ -108,9 +114,11 @@ export default function TypingSpeedTester() {
           <ResultsTabs
             isFinished={isFinished}
             wpm={wpm}
+            netWpm={netWpm}
             cpm={cpm}
             accuracy={accuracy}
             errors={errors}
+            errorRate={errorRate}
             typedWords={typedWords}
             correctWords={correctWords}
             difficulty={difficulty}
@@ -118,6 +126,8 @@ export default function TypingSpeedTester() {
             calculationMethod={calculationMethod}
             text={text}
             testHistory={testHistory}
+            totalKeystrokes={totalKeystrokes}
+            correctKeystrokes={correctKeystrokes}
             shareResult={shareResult}
             exportHistory={exportHistory}
             clearHistory={clearHistory}

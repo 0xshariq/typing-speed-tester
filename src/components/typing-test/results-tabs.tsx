@@ -9,9 +9,11 @@ import type { TestResult } from "@/types"
 interface ResultsTabsProps {
   isFinished: boolean
   wpm: number
+  netWpm: number
   cpm: number
   accuracy: number
   errors: number
+  errorRate: number
   typedWords: { text: string; isCorrect: boolean; isPartiallyCorrect: boolean; errorCount: number }[]
   correctWords: number
   difficulty: string
@@ -19,6 +21,8 @@ interface ResultsTabsProps {
   calculationMethod: string
   text: string
   testHistory: TestResult[]
+  totalKeystrokes: number
+  correctKeystrokes: number
   shareResult: () => void
   exportHistory: () => void
   clearHistory: () => void
@@ -28,9 +32,11 @@ interface ResultsTabsProps {
 export function ResultsTabs({
   isFinished,
   wpm,
+  netWpm,
   cpm,
   accuracy,
   errors,
+  errorRate,
   typedWords,
   correctWords,
   difficulty,
@@ -38,6 +44,8 @@ export function ResultsTabs({
   calculationMethod,
   text,
   testHistory,
+  totalKeystrokes,
+  correctKeystrokes,
   shareResult,
   exportHistory,
   clearHistory,
@@ -72,8 +80,17 @@ export function ResultsTabs({
               <p className="text-sm text-muted-foreground">Words Per Minute</p>
               <p className="text-2xl font-bold">{wpm}</p>
               <p className="text-xs text-muted-foreground">
-                {calculationMethod === "actual" ? "Based on actual words" : "Based on characters/5"}
+                {calculationMethod === "standard"
+                  ? "Standard calculation"
+                  : calculationMethod === "actual"
+                    ? "Based on actual words"
+                    : "Based on characters/5"}
               </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Net WPM</p>
+              <p className="text-2xl font-bold">{netWpm}</p>
+              <p className="text-xs text-muted-foreground">WPM minus errors per minute</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Characters Per Minute</p>
@@ -86,12 +103,20 @@ export function ResultsTabs({
             <div>
               <p className="text-sm text-muted-foreground">Errors</p>
               <p className="text-2xl font-bold">{errors}</p>
+              <p className="text-xs text-muted-foreground">Error rate: {errorRate} per minute</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Words Typed</p>
               <p className="text-2xl font-bold">{typedWords.length}</p>
               <p className="text-xs text-muted-foreground">
                 {correctWords} correct / {typedWords.length - correctWords} incorrect
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Keystrokes</p>
+              <p className="text-2xl font-bold">{totalKeystrokes}</p>
+              <p className="text-xs text-muted-foreground">
+                {correctKeystrokes} correct / {totalKeystrokes - correctKeystrokes} incorrect
               </p>
             </div>
             <div>
@@ -136,10 +161,24 @@ export function ResultsTabs({
               </p>
             </div>
             <div>
+              <p className="text-sm text-muted-foreground">Keystroke Accuracy</p>
+              <p className="text-xl font-bold">
+                {totalKeystrokes > 0 ? Math.round((correctKeystrokes / totalKeystrokes) * 100) : 0}%
+              </p>
+            </div>
+            <div>
               <p className="text-sm text-muted-foreground">Average WPM</p>
               <p className="text-xl font-bold">
                 {testHistory.length > 0
                   ? Math.round(testHistory.reduce((sum, result) => sum + result.wpm, 0) / testHistory.length)
+                  : 0}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Average Net WPM</p>
+              <p className="text-xl font-bold">
+                {testHistory.length > 0
+                  ? Math.round(testHistory.reduce((sum, result) => sum + (result.netWpm || 0), 0) / testHistory.length)
                   : 0}
               </p>
             </div>
@@ -178,13 +217,16 @@ export function ResultsTabs({
                   <div>
                     <p className="font-medium">{formatDate(result.date)}</p>
                     <p className="text-sm text-muted-foreground">
-                      {result.wpm} WPM, {result.accuracy}% accuracy, {result.difficulty}
+                      {result.wpm} WPM ({result.netWpm || 0} Net), {result.accuracy}% accuracy, {result.difficulty}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {result.correctWords}/{result.wordCount} words correct
                     </p>
                   </div>
-                  <Badge>{result.errors} errors</Badge>
+                  <div className="flex flex-col items-end">
+                    <Badge>{result.errors} errors</Badge>
+                    <span className="text-xs text-muted-foreground mt-1">{result.errorRate || 0} errors/min</span>
+                  </div>
                 </div>
               ))}
             </div>

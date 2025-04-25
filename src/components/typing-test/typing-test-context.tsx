@@ -25,9 +25,11 @@ interface TypingTestContextType {
   timeLeft: number
   testDuration: number
   wpm: number
+  netWpm: number
   cpm: number
   accuracy: number
   errors: number
+  errorRate: number
   isLoading: boolean
   difficulty: DifficultyLevel
   testHistory: TestResult[]
@@ -42,15 +44,17 @@ interface TypingTestContextType {
   wordCount: number
   correctWords: number
   typedWords: WordData[]
-  calculationMethod: "traditional" | "actual"
+  calculationMethod: "traditional" | "actual" | "standard"
   fontSize: FontSize
   showKeyboard: boolean
   focusMode: boolean
   streakCount: number
   maxStreak: number
   showStreakCounter: boolean
-  inputRef: React.RefObject<HTMLInputElement | null>
-  textContainerRef: React.RefObject<HTMLDivElement | null>
+  totalKeystrokes: number
+  correctKeystrokes: number
+  inputRef: React.RefObject<HTMLInputElement>
+  textContainerRef: React.RefObject<HTMLDivElement>
 
   // Actions
   setText: (text: string) => void
@@ -62,7 +66,7 @@ interface TypingTestContextType {
   setKeyboardLayout: (layout: KeyboardLayout) => void
   setShowInstantFeedback: (show: boolean) => void
   setTextType: (type: TextType) => void
-  setCalculationMethod: (method: "traditional" | "actual") => void
+  setCalculationMethod: (method: "traditional" | "actual" | "standard") => void
   setFontSize: (size: FontSize) => void
   setShowKeyboard: (show: boolean) => void
   setFocusMode: (enabled: boolean) => void
